@@ -1,7 +1,5 @@
 # omni-on-unraid
 
-[![apply](https://github.com/syscode-labs/omni-on-unraid/actions/workflows/apply.yml/badge.svg?event=workflow_dispatch)](https://github.com/syscode-labs/omni-on-unraid/actions/workflows/apply.yml)
-
 Self-hosted Omni control plane on Unraid for declarative Talos cluster lifecycle.
 
 ## Goal
@@ -32,29 +30,16 @@ After this point, no clickops are required.
 - `scripts/down.sh`: stops stack
 - `scripts/backup.sh`: backup Omni data volumes
 - `scripts/restore.sh`: restore Omni data volumes
-- `.github/workflows/apply.yml`: remote apply via SSH over Tailscale
 - `docs/sops/`: operational SOP set
 
-## Quick Start
-
-1. Copy env template:
+## Manual Apply (No CI)
 
 ```bash
 cp templates/omni.env.example .env
-```
-
-2. Edit `.env` with your domain/certs/secrets.
-
-3. Render and start:
-
-```bash
+# edit .env
 ./scripts/render.sh
 ./scripts/up.sh
 ```
-
-## GitHub Secrets Required (apply workflow)
-
-See `SECRETS.md`.
 
 ## Upgrade Process
 

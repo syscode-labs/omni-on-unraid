@@ -1,30 +1,53 @@
-# SOP: Apply Omni on Unraid
+# SOP: Apply Omni on Unraid (Manual)
 
 ## Purpose
 
-Deploy or update Omni stack on Unraid through the `apply` workflow.
+Deploy or update Omni stack on Unraid without CI.
 
 ## Prerequisites
 
-- Unraid reachable from tailnet
-- Required secrets configured
-- `.env` prepared in target directory process
+- SSH access to Unraid host
+- `.env` values ready
+- required host prerequisites already satisfied
 
 ## Steps
 
-1. Dispatch workflow `apply` in GitHub Actions.
-2. Wait for completion of:
-   - tailnet connection
-   - rsync sync
-   - remote `render.sh` + `up.sh`
+1. Sync or clone repo on target environment.
+2. Prepare env file:
+
+```bash
+cp templates/omni.env.example .env
+```
+
+3. Edit `.env` with domain/cert/secrets.
+4. Render deployment files:
+
+```bash
+./scripts/render.sh
+```
+
+5. Apply stack:
+
+```bash
+./scripts/up.sh
+```
 
 ## Validation
 
-1. Check workflow success.
-2. SSH to Unraid and verify containers are running.
-3. Access Omni UI endpoint and confirm health.
+1. Check Omni containers are healthy.
+2. Reach Omni UI/API endpoint.
+3. Confirm logs show successful startup.
 
 ## Rollback
 
-1. Run remote `./scripts/down.sh`.
-2. Restore previous backup with `./scripts/restore.sh` if needed.
+1. Stop stack:
+
+```bash
+./scripts/down.sh
+```
+
+2. Restore backup if needed:
+
+```bash
+./scripts/restore.sh
+```
