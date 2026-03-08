@@ -1,4 +1,6 @@
 .env
-generated/
-data/
-backups/
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+terraform/libvirt/.terraform/
