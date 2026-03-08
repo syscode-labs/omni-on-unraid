@@ -44,10 +44,21 @@ fi
 
 cd "$TF_DIR"
 case "$action" in
-  init) terraform init ;;
-  plan) terraform plan ;;
-  apply) terraform apply ;;
-  destroy) terraform destroy ;;
+  init)
+    terraform init -upgrade
+    ;;
+  plan)
+    terraform init -upgrade
+    terraform plan
+    ;;
+  apply)
+    terraform init -upgrade
+    terraform apply
+    ;;
+  destroy)
+    terraform init -upgrade
+    terraform destroy
+    ;;
   *)
     echo "Unsupported action: $action" >&2
     exit 1
