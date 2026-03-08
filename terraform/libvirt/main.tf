@@ -46,6 +46,7 @@ resource "libvirt_domain" "vm" {
 
   network_interface {
     bridge = var.network_bridge
+    mac    = var.vm_mac != "" ? var.vm_mac : null
   }
 
   console {

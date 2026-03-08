@@ -71,3 +71,9 @@ variable "tailscale_hostname" {
   default = "omni"
 }
 
+
+variable "vm_mac" {
+  type        = string
+  description = "Optional fixed VM NIC MAC to keep cloud-init netplan match stable across domain replacement"
+  default     = ""
+}

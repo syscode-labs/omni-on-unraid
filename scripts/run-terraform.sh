@@ -70,6 +70,20 @@ if [ -z "${TF_VAR_network_bridge:-}" ]; then
   fi
 fi
 
+if [ -z "${TF_VAR_vm_mac:-}" ]; then
+  if [ -n "${OMNI_VM_MAC:-}" ]; then
+    export TF_VAR_vm_mac="$OMNI_VM_MAC"
+  else
+    vm_name="${OMNI_VM_NAME:-omni-vm}"
+    if [ -n "${OMNI_LIBVIRT_URI:-}" ] && command -v virsh >/dev/null 2>&1; then
+      current_mac="$(virsh -c "$OMNI_LIBVIRT_URI" domiflist "$vm_name" 2>/dev/null | awk '/network|bridge/ {print $5; exit}')"
+      if [ -n "$current_mac" ]; then
+        export TF_VAR_vm_mac="$current_mac"
+      fi
+    fi
+  fi
+fi
+
 cd "$TF_DIR"
 case "$action" in
   init)

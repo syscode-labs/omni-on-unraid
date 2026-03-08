@@ -39,7 +39,9 @@ mise run ctr:shell
 - `OMNI_LIBVIRT_URI` must point to your actual libvirt endpoint.
 - `OMNI_LIBVIRT_BRIDGE` defaults to `br0` for direct LAN IPs and can be set to VLAN bridges like `br0.50`.
 - With `br0`, your LAN DHCP must lease to VM MACs on that bridge; if not, `ens3` stays without IPv4 and deploy will fail.
+- Optional `OMNI_VM_MAC` can pin the NIC MAC to avoid cloud-init netplan MAC drift after domain replacement.
 - Terraform reads base image from local operator path (`OMNI_LOCAL_BASE_IMAGE_PATH`), then imports into libvirt pool.
 - If using Unraid, VM/libvirt service must be enabled and reachable.
 - Full operator details: `docs/sops/`.
+- `ctr:omni:deploy-remote` auto-discovers VM IP from libvirt and renders a generated compose env (`generated/compose.env`) with sane defaults.
 - Prereq checklist: `docs/sops/50-prereq-checklist.md`.

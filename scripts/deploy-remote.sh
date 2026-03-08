@@ -17,6 +17,17 @@ JUMP_HOST="${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}"
 JUMP_STAGE_DIR="${OMNI_JUMP_STAGE_DIR:-/tmp/omni-deploy-src}"
 BASE_SSH_OPTS="${OMNI_SSH_OPTS:--o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5}"
 
+SSH_IDENTITY_FILE="${OMNI_SSH_IDENTITY_FILE:-}"
+if [ -z "$SSH_IDENTITY_FILE" ] && [ -n "${OMNI_SSH_PUBLIC_KEY_PATH:-}" ]; then
+  candidate="${OMNI_SSH_PUBLIC_KEY_PATH%.pub}"
+  if [ -f "$candidate" ]; then
+    SSH_IDENTITY_FILE="$candidate"
+  fi
+fi
+if [ -n "$SSH_IDENTITY_FILE" ]; then
+  BASE_SSH_OPTS="$BASE_SSH_OPTS -i $SSH_IDENTITY_FILE -o IdentitiesOnly=yes"
+fi
+
 if [ -z "$TARGET" ]; then
   libvirt_uri="${OMNI_LIBVIRT_URI:-}"
   if [ -z "$libvirt_uri" ] && [ -n "$JUMP_HOST" ]; then
@@ -26,9 +37,9 @@ if [ -z "$TARGET" ]; then
 
   if [ -n "$libvirt_uri" ]; then
     for _ in $(seq 1 30); do
-      ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source lease 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); print a[1]; exit}')"
+      ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source lease 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); if (a[1] !~ /^127\./) {print a[1]; exit}}')"
       if [ -z "$ip" ]; then
-        ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source agent 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); print a[1]; exit}')"
+        ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source agent 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); if ($1 != "lo" && $1 != "docker0" && $1 != "tailscale0" && a[1] !~ /^127\./ && a[1] !~ /^172\.17\./) {print a[1]; exit}}')"
       fi
       if [ -n "$ip" ]; then
         TARGET="${SSH_USER}@${ip}"
