@@ -8,10 +8,14 @@ Provision Omni VM with Terraform and deploy Omni on it using repository automati
 
 - Unraid/libvirt reachable from operator machine
 - VM/libvirt service enabled on Unraid
-- Terraform and mise installed
+- Terraform and mise installed (or use `scripts/in-container.sh`)
 - `.env` filled from template
 - dedicated Unraid SSH operator account configured per:
   - `docs/sops/40-unraid-ssh-operator-hardening.md`
+
+Before apply, run checklist:
+
+- `docs/sops/50-prereq-checklist.md`
 
 For all manual input variables, see:
 

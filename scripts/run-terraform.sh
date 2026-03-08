@@ -17,7 +17,8 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 if [ -z "${OMNI_LIBVIRT_URI:-}" ] && [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
-  OMNI_LIBVIRT_URI="qemu+ssh://${OMNI_LIBVIRT_IMAGE_SSH_TARGET}/system"
+  libvirt_host="${OMNI_LIBVIRT_IMAGE_SSH_TARGET#*@}"
+  OMNI_LIBVIRT_URI="qemu+tcp://${libvirt_host}/system"
 fi
 
 if [ -z "${TF_VAR_libvirt_uri:-}" ] && [ -n "${OMNI_LIBVIRT_URI:-}" ]; then

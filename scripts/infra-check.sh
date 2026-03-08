@@ -14,7 +14,8 @@ source "$ENV_FILE"
 
 # Derive OMNI_LIBVIRT_URI if omitted.
 if [ -z "${OMNI_LIBVIRT_URI:-}" ] && [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
-  OMNI_LIBVIRT_URI="qemu+ssh://${OMNI_LIBVIRT_IMAGE_SSH_TARGET}/system"
+  libvirt_host="${OMNI_LIBVIRT_IMAGE_SSH_TARGET#*@}"
+  OMNI_LIBVIRT_URI="qemu+tcp://${libvirt_host}/system"
 fi
 
 required=(OMNI_BASE_IMAGE_PATH OMNI_SSH_PUBLIC_KEY_PATH)

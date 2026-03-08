@@ -15,8 +15,21 @@ mise run infra:apply
 mise run omni:deploy-remote
 ```
 
+## Containerized Tooling (No host toolchain dependency)
+
+```bash
+./scripts/in-container.sh "./scripts/run-terraform.sh apply"
+```
+
+Open interactive shell in tooling container:
+
+```bash
+./scripts/in-container.sh
+```
+
 ## Important
 
 - `OMNI_LIBVIRT_URI` must point to your actual libvirt endpoint.
-- If using Unraid, VM/libvirt service must be enabled.
+- If using Unraid, VM/libvirt service must be enabled and reachable.
 - Full operator details: `docs/sops/`.
+- Prereq checklist: `docs/sops/50-prereq-checklist.md`.
