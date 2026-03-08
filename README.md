@@ -29,6 +29,11 @@ Required `.env` entries:
 - `OMNI_BASE_IMAGE_PATH` (path to cloud image on libvirt host)
 - `OMNI_SSH_PUBLIC_KEY_PATH` (your local public key path)
 
+Recommended security entries:
+
+- `OMNI_LIBVIRT_IMAGE_SSH_TARGET` with dedicated restricted Unraid user
+  - see `docs/sops/40-unraid-ssh-operator-hardening.md`
+
 Optional bootstrap entries:
 
 - `OMNI_TAILSCALE_AUTHKEY`
@@ -68,3 +73,4 @@ BACKUP=./backups/<file>.tar.gz mise run omni:restore
 - This repo is manual-operator driven (no CI apply workflow).
 - If custom domain TLS is required, cert/key paths must be provided in `.env` on target host.
 - Operator-input SOP: `docs/sops/30-terraform-inputs-and-operator-vars.md`
+- SSH hardening/persistence SOP: `docs/sops/40-unraid-ssh-operator-hardening.md`

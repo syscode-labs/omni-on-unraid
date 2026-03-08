@@ -29,13 +29,13 @@ mise run infra:check
 - Default:
   - `https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img`
 
-### `OMNI_LIBVIRT_IMAGE_SSH_TARGET` (in `.env`, optional)
-- Purpose: SSH target to place/check image on remote libvirt host
+### `OMNI_LIBVIRT_IMAGE_SSH_TARGET` (in `.env`, recommended)
+- Purpose: SSH target to place/check image on libvirt host
 - Format: `user@host`
 - Example:
-  - `root@unraid.tailnet.ts.net`
-- Notes:
-  - Set this when Terraform points to a remote libvirt host filesystem.
+  - `omniops@unraid.tailnet.ts.net`
+- Security requirement:
+  - use dedicated restricted account (see `docs/sops/40-unraid-ssh-operator-hardening.md`)
 
 ### `OMNI_SSH_PUBLIC_KEY_PATH` (in `.env`)
 - Purpose: path to SSH public key file used for VM bootstrap access
