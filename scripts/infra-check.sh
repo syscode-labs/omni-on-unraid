@@ -12,7 +12,7 @@ fi
 # shellcheck disable=SC1090,SC1091
 source "$ENV_FILE"
 
-required=(OMNI_BASE_IMAGE_PATH OMNI_SSH_PUBLIC_KEY_PATH)
+required=(OMNI_BASE_IMAGE_PATH OMNI_SSH_PUBLIC_KEY_PATH OMNI_LIBVIRT_URI)
 for key in "${required[@]}"; do
   if [ -z "${!key:-}" ]; then
     echo "Missing required .env value: ${key}" >&2
@@ -29,6 +29,10 @@ echo "$OMNI_BASE_IMAGE_PATH" | grep -q '^/' || {
   echo "OMNI_BASE_IMAGE_PATH must be an absolute path" >&2
   exit 1
 }
+
+if [[ "$OMNI_LIBVIRT_URI" == qemu:///system ]]; then
+  echo "OMNI_LIBVIRT_URI is local qemu:///system; this requires local libvirtd running on your machine" >&2
+fi
 
 if [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
   if ! ssh "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" "test -f '$OMNI_BASE_IMAGE_PATH'"; then

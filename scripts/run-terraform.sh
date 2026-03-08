@@ -16,6 +16,10 @@ if [ -f "$ENV_FILE" ]; then
   source "$ENV_FILE"
 fi
 
+if [ -z "${TF_VAR_libvirt_uri:-}" ] && [ -n "${OMNI_LIBVIRT_URI:-}" ]; then
+  export TF_VAR_libvirt_uri="$OMNI_LIBVIRT_URI"
+fi
+
 if [ -z "${TF_VAR_ssh_public_key:-}" ]; then
   key_path="${OMNI_SSH_PUBLIC_KEY_PATH:-}"
   if [ -z "$key_path" ]; then

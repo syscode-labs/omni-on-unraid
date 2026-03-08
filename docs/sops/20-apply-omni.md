@@ -7,6 +7,7 @@ Provision Omni VM with Terraform and deploy Omni on it using repository automati
 ## Prerequisites
 
 - Unraid/libvirt reachable from operator machine
+- VM/libvirt service enabled on Unraid
 - Terraform and mise installed
 - `.env` filled from template
 - dedicated Unraid SSH operator account configured per:
@@ -41,17 +42,4 @@ mise run infra:apply
 
 ```bash
 mise run omni:deploy-remote
-```
-
-## Validation
-
-- VM is reachable via SSH
-- `tailscale status` on VM shows connected (if enabled)
-- Omni container is running and healthy
-- Omni endpoint responds
-
-## Rollback
-
-```bash
-mise run infra:destroy
 ```
