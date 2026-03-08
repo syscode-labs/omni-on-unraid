@@ -25,12 +25,12 @@ After this point, no clickops are required.
 ## Declarative Assets
 
 - `templates/omni.env.example`: environment contract
-- `templates/compose.yaml`: pinned Omni Compose stack
-- `scripts/render.sh`: renders final config from templates
+- `scripts/render.sh`: fetches pinned upstream Omni deploy assets
 - `scripts/up.sh`: starts stack from rendered config
 - `scripts/down.sh`: stops stack
 - `scripts/backup.sh`: backup Omni data volumes
 - `scripts/restore.sh`: restore Omni data volumes
+- `.github/workflows/apply.yml`: remote apply via SSH using repository secrets
 
 ## Quick Start
 
@@ -48,6 +48,13 @@ cp templates/omni.env.example .env
 ./scripts/render.sh
 ./scripts/up.sh
 ```
+
+## GitHub Secrets Required (apply workflow)
+
+- `UNRAID_HOST`
+- `UNRAID_USER`
+- `UNRAID_SSH_PRIVATE_KEY`
+- `UNRAID_TARGET_DIR`
 
 ## Upgrade Process
 
