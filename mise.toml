@@ -2,19 +2,19 @@
 
 [tasks."infra:init"]
 description = "Initialize Terraform for Omni VM infrastructure"
-run = "cd terraform/libvirt && terraform init"
+run = "./scripts/run-terraform.sh init"
 
 [tasks."infra:plan"]
 description = "Plan Omni VM infrastructure changes"
-run = "cd terraform/libvirt && terraform plan"
+run = "./scripts/run-terraform.sh plan"
 
 [tasks."infra:apply"]
 description = "Apply Omni VM infrastructure"
-run = "cd terraform/libvirt && terraform apply"
+run = "./scripts/run-terraform.sh apply"
 
 [tasks."infra:destroy"]
 description = "Destroy Omni VM infrastructure"
-run = "cd terraform/libvirt && terraform destroy"
+run = "./scripts/run-terraform.sh destroy"
 
 [tasks."omni:doctor"]
 description = "Validate local prerequisites for Omni operations"

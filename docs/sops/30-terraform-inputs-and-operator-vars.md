@@ -13,7 +13,7 @@ Any step that requires manual operator input must be documented with:
 
 ## Variables used in provisioning/deploy flow
 
-### `TF_VAR_base_image_path`
+### `OMNI_BASE_IMAGE_PATH` (in `.env`)
 - Purpose: source cloud image path used by libvirt to create the VM disk
 - Source: path on the libvirt host filesystem
 - Format: absolute path to qcow2 image
@@ -21,47 +21,46 @@ Any step that requires manual operator input must be documented with:
   - `/var/lib/libvirt/images/ubuntu-24.04-server-cloudimg-amd64.img`
 - Validation:
 ```bash
-ls -lh "$TF_VAR_base_image_path"
+ls -lh "$OMNI_BASE_IMAGE_PATH"
 ```
 
-### `TF_VAR_ssh_public_key`
-- Purpose: bootstrap SSH access to the provisioned VM
-- Source: your operator SSH public key
-- Format: single-line OpenSSH public key
+### `OMNI_SSH_PUBLIC_KEY_PATH` (in `.env`)
+- Purpose: path to SSH public key file used for VM bootstrap access
+- Source: your operator machine filesystem
+- Format: absolute file path to `.pub` file
 - Example:
-  - `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... operator@host`
+  - `/Users/giovanni/.ssh/syscode.pub`
 - Validation:
 ```bash
-echo "$TF_VAR_ssh_public_key" | grep -E '^(ssh-ed25519|ssh-rsa) '
+test -f "$OMNI_SSH_PUBLIC_KEY_PATH"
+cat "$OMNI_SSH_PUBLIC_KEY_PATH"
 ```
 
-### `TF_VAR_tailscale_authkey`
-- Purpose: joins the VM to tailnet during cloud-init bootstrap
+### `OMNI_TAILSCALE_AUTHKEY` (in `.env`, optional)
+- Purpose: joins VM to tailnet during cloud-init bootstrap
 - Source: Tailscale admin-generated auth key
 - Format: key string (`tskey-...`)
-- Notes: treat as secret; rotate if exposed
+- Reusability guidance:
+  - Use a **reusable tagged key** for IaC reprovisioning workflows
+  - Rotate on schedule and after incidents
 - Validation:
 ```bash
-echo "$TF_VAR_tailscale_authkey" | grep '^tskey-'
+echo "$OMNI_TAILSCALE_AUTHKEY" | grep '^tskey-'
 ```
 
-### `TF_VAR_tailscale_hostname`
+### `OMNI_TAILSCALE_HOSTNAME` (in `.env`, optional)
 - Purpose: desired Tailscale device hostname for the VM
-- Source: operator naming choice
+- Default: `omni`
 - Format: DNS-safe short hostname
-- Example:
-  - `omni`
 - Validation:
 ```bash
-echo "$TF_VAR_tailscale_hostname" | grep -E '^[a-z0-9-]+$'
+echo "$OMNI_TAILSCALE_HOSTNAME" | grep -E '^[a-z0-9-]+$'
 ```
 
-### `OMNI_SSH_TARGET`
-- Purpose: SSH destination used by `mise run omni:deploy-remote`
-- Source: VM reachable address after provisioning (libvirt IP or Tailscale IP)
+### `OMNI_SSH_TARGET` (in `.env`, optional override)
+- Purpose: explicit SSH destination for remote deploy task
 - Format: `user@host`
-- Example:
-  - `omni@100.101.102.103`
+- If unset: defaults to `${OMNI_SSH_USER}@${OMNI_TAILSCALE_HOSTNAME}`
 - Validation:
 ```bash
 ssh -o BatchMode=yes -o ConnectTimeout=5 "$OMNI_SSH_TARGET" 'echo ok'
@@ -70,15 +69,12 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 "$OMNI_SSH_TARGET" 'echo ok'
 ## Required operator command sequence
 
 ```bash
-export TF_VAR_base_image_path='...'
-export TF_VAR_ssh_public_key='ssh-ed25519 AAAA...'
-export TF_VAR_tailscale_authkey='tskey-...'
-export TF_VAR_tailscale_hostname='omni'
+cp templates/omni.env.example .env
+# edit .env with OMNI_BASE_IMAGE_PATH and OMNI_SSH_PUBLIC_KEY_PATH
 
 mise run infra:init
 mise run infra:apply
 
-export OMNI_SSH_TARGET='omni@<vm-ip-or-tailscale-ip>'
 mise run omni:deploy-remote
 ```
 

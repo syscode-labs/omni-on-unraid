@@ -8,8 +8,7 @@ Provision Omni VM with Terraform and deploy Omni on it using repository automati
 
 - Unraid/libvirt reachable from operator machine
 - Terraform and mise installed
-- SSH key pair available
-- Tailscale auth key available for bootstrap (optional but recommended)
+- `.env` filled from template
 
 For all manual input variables, see:
 
@@ -17,19 +16,16 @@ For all manual input variables, see:
 
 ## Steps
 
-1. Export required variables.
-2. Provision VM:
+1. Provision VM:
 
 ```bash
 mise run infra:init
 mise run infra:apply
 ```
 
-3. Identify VM address (libvirt lease or Tailscale IP).
-4. Deploy Omni to VM:
+2. Deploy Omni to VM:
 
 ```bash
-export OMNI_SSH_TARGET='omni@<vm-ip-or-ts-ip>'
 mise run omni:deploy-remote
 ```
 
