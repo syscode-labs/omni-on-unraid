@@ -30,5 +30,7 @@ fi
 docker run --rm -it \
   -v "$ROOT_DIR:/workspace" \
   -v "$HOME/.ssh:/root/.ssh:ro" \
+  -v "$HOME:$HOME:ro" \
+  -e HOME="$HOME" \
   -w /workspace \
   "$IMAGE" "$cmd"
