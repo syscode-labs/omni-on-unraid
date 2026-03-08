@@ -62,8 +62,12 @@ if [ -z "${TF_VAR_tailscale_hostname:-}" ] && [ -n "${OMNI_TAILSCALE_HOSTNAME:-}
   export TF_VAR_tailscale_hostname="$OMNI_TAILSCALE_HOSTNAME"
 fi
 
-if [ -z "${TF_VAR_network_bridge:-}" ] && [ -n "${OMNI_LIBVIRT_NETWORK:-}" ]; then
-  export TF_VAR_network_bridge="$OMNI_LIBVIRT_NETWORK"
+if [ -z "${TF_VAR_network_bridge:-}" ]; then
+  if [ -n "${OMNI_LIBVIRT_BRIDGE:-}" ]; then
+    export TF_VAR_network_bridge="$OMNI_LIBVIRT_BRIDGE"
+  elif [ -n "${OMNI_LIBVIRT_NETWORK:-}" ]; then
+    export TF_VAR_network_bridge="$OMNI_LIBVIRT_NETWORK"
+  fi
 fi
 
 cd "$TF_DIR"

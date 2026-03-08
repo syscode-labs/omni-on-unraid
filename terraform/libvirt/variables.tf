@@ -11,7 +11,7 @@ variable "pool_name" {
 
 variable "network_bridge" {
   type        = string
-  description = "Host bridge interface for VM NIC (Unraid typically br0)"
+  description = "Host bridge interface for VM NIC (Unraid typically br0; VLAN bridges like br0.50 are supported)"
   default     = "br0"
 }
 
@@ -70,3 +70,4 @@ variable "tailscale_hostname" {
   type    = string
   default = "omni"
 }
+
