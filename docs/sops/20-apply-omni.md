@@ -10,26 +10,25 @@ Deploy or update Omni stack on Unraid without CI.
 - `.env` values ready
 - required host prerequisites already satisfied
 
-## Steps
+## Steps (mise)
 
-1. Sync or clone repo on target environment.
-2. Prepare env file:
+1. Prepare env file:
 
 ```bash
 cp templates/omni.env.example .env
 ```
 
-3. Edit `.env` with domain/cert/secrets.
-4. Render deployment files:
+2. Edit `.env` with domain/cert/secrets.
+3. Run prerequisite checks:
 
 ```bash
-./scripts/render.sh
+mise run omni:doctor
 ```
 
-5. Apply stack:
+4. Apply stack:
 
 ```bash
-./scripts/up.sh
+mise run omni:apply
 ```
 
 ## Validation
@@ -43,11 +42,11 @@ cp templates/omni.env.example .env
 1. Stop stack:
 
 ```bash
-./scripts/down.sh
+mise run omni:down
 ```
 
 2. Restore backup if needed:
 
 ```bash
-./scripts/restore.sh
+BACKUP=./backups/<file>.tar.gz mise run omni:restore
 ```

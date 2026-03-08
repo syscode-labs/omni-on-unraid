@@ -1,0 +1,48 @@
+[tools]
+
+[tasks."omni:doctor"]
+description = "Validate local prerequisites for Omni operations"
+run = '''
+set -euo pipefail
+command -v docker >/dev/null
+if ! docker compose version >/dev/null 2>&1; then
+  echo "docker compose plugin is required" >&2
+  exit 1
+fi
+if [ ! -f .env ]; then
+  echo "Missing .env (copy templates/omni.env.example .env)" >&2
+  exit 1
+fi
+echo "Prerequisites look good"
+'''
+
+[tasks."omni:render"]
+description = "Render pinned Omni deployment assets"
+run = "./scripts/render.sh"
+
+[tasks."omni:up"]
+description = "Start Omni stack"
+run = "./scripts/up.sh"
+
+[tasks."omni:down"]
+description = "Stop Omni stack"
+run = "./scripts/down.sh"
+
+[tasks."omni:backup"]
+description = "Backup Omni data"
+run = "./scripts/backup.sh"
+
+[tasks."omni:restore"]
+description = "Restore Omni data from BACKUP"
+run = '''
+set -euo pipefail
+if [ -z "${BACKUP:-}" ]; then
+  echo "Set BACKUP=/path/to/backup.tar.gz" >&2
+  exit 1
+fi
+./scripts/restore.sh "$BACKUP"
+'''
+
+[tasks."omni:apply"]
+description = "Local one-shot apply (render + up)"
+depends = ["omni:render", "omni:up"]

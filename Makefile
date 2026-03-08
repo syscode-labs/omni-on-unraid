@@ -1,13 +1,26 @@
-.PHONY: render up down backup
+.PHONY: doctor render up down backup restore apply
+
+doctor:
+	mise run omni:doctor
 
 render:
-	./scripts/render.sh
+	mise run omni:render
 
 up:
-	./scripts/up.sh
+	mise run omni:up
 
 down:
-	./scripts/down.sh
+	mise run omni:down
 
 backup:
-	./scripts/backup.sh
+	mise run omni:backup
+
+restore:
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "Set BACKUP=/path/to/backup.tar.gz" >&2; \
+		exit 1; \
+	fi
+	BACKUP="$(BACKUP)" mise run omni:restore
+
+apply:
+	mise run omni:apply

@@ -30,22 +30,39 @@ After this point, no clickops are required.
 - `scripts/down.sh`: stops stack
 - `scripts/backup.sh`: backup Omni data volumes
 - `scripts/restore.sh`: restore Omni data volumes
+- `mise.toml`: local operator task entrypoint
 - `docs/sops/`: operational SOP set
 
-## Manual Apply (No CI)
+## Manual Apply (Preferred: mise)
 
 ```bash
 cp templates/omni.env.example .env
 # edit .env
-./scripts/render.sh
-./scripts/up.sh
+mise run omni:doctor
+mise run omni:apply
+```
+
+Equivalent make flow:
+
+```bash
+make doctor
+make apply
+```
+
+## Common Operations
+
+```bash
+mise run omni:backup
+BACKUP=./backups/omni-data-YYYYmmdd-HHMMSS.tar.gz mise run omni:restore
+mise run omni:down
+mise run omni:up
 ```
 
 ## Upgrade Process
 
 1. Change `OMNI_VERSION` in `.env`
-2. Re-render compose
-3. Restart stack
+2. Re-render compose (`mise run omni:render`)
+3. Restart stack (`mise run omni:down && mise run omni:up`)
 4. Verify health and login
 
 ## Notes
