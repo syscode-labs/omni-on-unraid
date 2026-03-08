@@ -8,7 +8,7 @@ Create a dedicated SSH operator account for this repo automation with restricted
 
 - Unraid admin access
 - Shell access to Unraid host
-- Public keys for operator machine
+- Public key for operator machine
 
 ## Security objectives
 
@@ -17,57 +17,62 @@ Create a dedicated SSH operator account for this repo automation with restricted
 - Restrict key capabilities (no forwarding/pty)
 - Persist account and auth config across reboot/upgrade
 
-## Account model
+## One-time setup on Unraid
 
-Use one dedicated account, for example:
-
-- username: `omniops`
-- group: minimal required group only
-- home: persistent share path (for example `/mnt/user/appdata/omniops`)
-
-## Authorized key restrictions
-
-In `~omniops/.ssh/authorized_keys`, use key options:
-
-```text
-no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... operator@workstation
-```
-
-If you need command restrictions, use a forced command wrapper and implement allowlist checks.
-
-## Scope boundaries
-
-Allowed paths:
-
-- image path parent for `OMNI_BASE_IMAGE_PATH`
-- repo sync target path (`/opt/omni` by default)
-
-Do not grant write access outside these paths.
-
-## Persistence on Unraid
-
-Unraid root filesystem changes may not persist unless captured in startup scripts/config.
-
-Recommended pattern:
-
-1. Keep desired user SSH config as files in an Unraid persistent share (for example `/mnt/user/appdata/omniops/bootstrap/`).
-2. Add idempotent apply logic in Unraid startup script (`/boot/config/go`) to:
-   - ensure user exists
-   - ensure `.ssh` directory and permissions
-   - install/update `authorized_keys` from persistent source
-   - enforce ownership and mode
-
-Example `go` snippet shape (adapt paths/user for your host):
+1. Create persistent bootstrap directory:
 
 ```bash
-# idempotent account/bootstrap placeholder
+mkdir -p /mnt/user/appdata/omniops/bootstrap
+```
+
+2. Create restricted key file in persistent storage:
+
+```bash
+cat >/mnt/user/appdata/omniops/bootstrap/authorized_keys <<'KEY'
+no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... operator@workstation
+KEY
+chmod 600 /mnt/user/appdata/omniops/bootstrap/authorized_keys
+```
+
+3. Backup current startup script:
+
+```bash
+cp /boot/config/go /boot/config/go.bak.$(date +%Y%m%d-%H%M%S)
+```
+
+4. Edit `/boot/config/go` and append this idempotent block:
+
+```bash
+# --- omniops bootstrap begin ---
 if ! id omniops >/dev/null 2>&1; then
   useradd -m -d /mnt/user/appdata/omniops -s /bin/bash omniops
 fi
 mkdir -p /mnt/user/appdata/omniops/.ssh
 install -m 600 /mnt/user/appdata/omniops/bootstrap/authorized_keys /mnt/user/appdata/omniops/.ssh/authorized_keys
 chown -R omniops:users /mnt/user/appdata/omniops/.ssh
+# --- omniops bootstrap end ---
 ```
+
+5. Ensure script is executable:
+
+```bash
+chmod +x /boot/config/go
+```
+
+6. Apply now without reboot (optional immediate apply):
+
+```bash
+bash /boot/config/go
+```
+
+## Scope boundaries
+
+Allowed paths for `omniops`:
+
+- image path parent for `OMNI_BASE_IMAGE_PATH`
+- repo sync target path (`/opt/omni` by default)
+
+Do not grant write access outside these paths.
 
 ## Repo variable mapping
 
@@ -91,12 +96,13 @@ ssh omniops@<unraid-host> 'id && whoami'
 mise run infra:prepare-image
 ```
 
-3. Verify no unintended SSH capabilities (pty/forwarding) are available.
+3. Reboot Unraid and verify account/key still present.
 
 ## Rollback
 
-- Remove restricted key entry and disable account if compromised.
-- Rotate SSH key pair and reapply bootstrap from persistent source.
+- Restore previous `/boot/config/go` backup.
+- Remove `omniops` account if needed.
+- Rotate SSH key and update bootstrap key file.
 
 ## Audit trail note
 
@@ -104,5 +110,5 @@ Record:
 
 - username created
 - key fingerprint installed
-- startup persistence method/path
+- `/boot/config/go` change reference
 - validation command outputs
