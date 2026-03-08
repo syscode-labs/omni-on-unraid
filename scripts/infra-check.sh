@@ -46,7 +46,13 @@ if [[ "$OMNI_LIBVIRT_URI" == qemu:///system ]]; then
 fi
 
 if [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
-  if ! ssh "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" "test -f '$OMNI_BASE_IMAGE_PATH'"; then
+  if ! ssh -o BatchMode=yes "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" 'echo ok' >/dev/null 2>&1; then
+    echo "SSH connectivity failed for OMNI_LIBVIRT_IMAGE_SSH_TARGET: $OMNI_LIBVIRT_IMAGE_SSH_TARGET" >&2
+    echo "Validate manually: ssh -o BatchMode=yes $OMNI_LIBVIRT_IMAGE_SSH_TARGET 'echo ok'" >&2
+    exit 1
+  fi
+
+  if ! ssh -o BatchMode=yes "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" "test -f '$OMNI_BASE_IMAGE_PATH'"; then
     echo "Base image missing on remote libvirt host: $OMNI_BASE_IMAGE_PATH" >&2
     echo "Run: mise run infra:prepare-image" >&2
     exit 1
