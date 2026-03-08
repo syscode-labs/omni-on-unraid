@@ -10,6 +10,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate required secrets
+        env:
+          UNRAID_HOST: ${{ secrets.UNRAID_HOST }}
+          UNRAID_USER: ${{ secrets.UNRAID_USER }}
+          UNRAID_SSH_PRIVATE_KEY: ${{ secrets.UNRAID_SSH_PRIVATE_KEY }}
+          UNRAID_TARGET_DIR: ${{ secrets.UNRAID_TARGET_DIR }}
+        run: |
+          for key in UNRAID_HOST UNRAID_USER UNRAID_SSH_PRIVATE_KEY UNRAID_TARGET_DIR; do
+            if [ -z "${!key:-}" ]; then
+              echo "Missing required secret: ${key}" >&2
+              exit 1
+            fi
+          done
+
       - name: Configure SSH key
         run: |
           mkdir -p ~/.ssh
