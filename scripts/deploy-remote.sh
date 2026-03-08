@@ -15,6 +15,7 @@ REMOTE_DIR="${OMNI_REMOTE_DIR:-/opt/omni}"
 VM_NAME="${OMNI_VM_NAME:-omni-vm}"
 JUMP_HOST="${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}"
 JUMP_STAGE_DIR="${OMNI_JUMP_STAGE_DIR:-/tmp/omni-deploy-src}"
+RELAY_IP_PREFIXES="${OMNI_DEPLOY_RELAY_IP_PREFIXES:-192.168.122.}"
 BASE_SSH_OPTS="${OMNI_SSH_OPTS:--o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5}"
 
 SSH_IDENTITY_FILE="${OMNI_SSH_IDENTITY_FILE:-}"
@@ -64,8 +65,21 @@ EXCLUDES=(
   --exclude 'generated'
 )
 
-# For libvirt NAT guests, relay through libvirt host instead of ProxyJump.
-if [ -n "$JUMP_HOST" ] && [[ "$TARGET" =~ @192\.168\.122\.[0-9]+$ ]]; then
+# For configured target IP prefixes, relay through libvirt host instead of ProxyJump.
+needs_relay=0
+if [ -n "$JUMP_HOST" ] && [ -n "$RELAY_IP_PREFIXES" ]; then
+  target_host="${TARGET##*@}"
+  IFS=',' read -r -a relay_prefixes <<< "$RELAY_IP_PREFIXES"
+  for relay_prefix in "${relay_prefixes[@]}"; do
+    relay_prefix="$(echo "$relay_prefix" | tr -d '[:space:]')"
+    if [ -n "$relay_prefix" ] && [[ "$target_host" == ${relay_prefix}* ]]; then
+      needs_relay=1
+      break
+    fi
+  done
+fi
+
+if [ "$needs_relay" = "1" ]; then
   rsync -az --delete \
     -e "ssh $BASE_SSH_OPTS" \
     "${EXCLUDES[@]}" \

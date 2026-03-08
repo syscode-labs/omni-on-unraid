@@ -7,11 +7,11 @@ Add these in `.env`:
 - `OMNI_SSH_PUBLIC_KEY_PATH=/absolute/path/to/your/key.pub`
 - `OMNI_TAILSCALE_AUTHKEY=tskey-...` (recommended)
 
-`OMNI_LIBVIRT_URI`, `OMNI_BASE_IMAGE_PATH`, and `OMNI_BASE_IMAGE_URL` are pre-populated in template defaults and should be reviewed for your hostnames/paths.
+Set `OMNI_LIBVIRT_URI`, `OMNI_BASE_IMAGE_PATH`, and (optionally) `OMNI_LIBVIRT_IMAGE_SSH_TARGET` for your environment.
 
 ## Critical prerequisite: libvirt availability on Unraid
 
-If you use remote URI like `qemu+ssh://omniops@bookofshadows/system`, Unraid must have VM/libvirt service enabled.
+If you use remote URI like `qemu+tcp://<libvirt-host>/system`, the libvirt host must have VM/libvirt service enabled.
 
 Validation from operator machine:
 
@@ -25,18 +25,18 @@ If this fails with socket/connect errors, enable virtualization/libvirt on Unrai
 
 ### `OMNI_LIBVIRT_URI`
 - Purpose: Terraform provider endpoint
-- Typical value: `qemu+ssh://omniops@bookofshadows/system`
+- Typical value: `qemu+tcp://<libvirt-host>/system`
 
 ### `OMNI_BASE_IMAGE_PATH`
 - Purpose: cloud image path on libvirt host
-- Example: `/mnt/user/appdata/omni/images/ubuntu-noble-cloudimg-amd64.qcow2`
+- Example: `/path/on/libvirt-host/ubuntu-noble-cloudimg-amd64.qcow2`
 
 ### `OMNI_BASE_IMAGE_URL`
 - Purpose: source URL used by `infra:prepare-image`
 
 ### `OMNI_LIBVIRT_IMAGE_SSH_TARGET`
 - Purpose: SSH target for image preparation/check
-- Example: `omniops@bookofshadows`
+- Example: `<ssh-user>@<libvirt-host>`
 
 ### `OMNI_SSH_PUBLIC_KEY_PATH`
 - Purpose: local path to public key used for VM bootstrap
@@ -57,3 +57,7 @@ mise run infra:init
 mise run infra:apply
 mise run omni:deploy-remote
 ```
+
+### `OMNI_DEPLOY_RELAY_IP_PREFIXES`
+- Purpose: comma-separated target IP prefixes that require relay via `OMNI_LIBVIRT_IMAGE_SSH_TARGET`
+- Default: `192.168.122.`
