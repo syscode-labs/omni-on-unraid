@@ -1,4 +1,7 @@
-.PHONY: infra-check infra-init infra-plan infra-apply infra-destroy doctor render up down backup restore deploy-remote stack-provision
+.PHONY: infra-prepare-image infra-check infra-init infra-plan infra-apply infra-destroy doctor render up down backup restore deploy-remote stack-provision
+
+infra-prepare-image:
+	mise run infra:prepare-image
 
 infra-check:
 	mise run infra:check

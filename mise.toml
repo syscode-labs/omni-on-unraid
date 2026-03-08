@@ -1,5 +1,9 @@
 [tools]
 
+[tasks."infra:prepare-image"]
+description = "Download/sync Ubuntu cloud image to libvirt host path"
+run = "./scripts/prepare-base-image.sh"
+
 [tasks."infra:check"]
 description = "Validate required .env inputs for infra provisioning"
 run = "./scripts/infra-check.sh"
@@ -71,4 +75,4 @@ run = "./scripts/deploy-remote.sh"
 
 [tasks."stack:provision"]
 description = "Provision VM infra then deploy Omni remotely"
-depends = ["infra:apply", "omni:deploy-remote"]
+depends = ["infra:prepare-image", "infra:apply", "omni:deploy-remote"]

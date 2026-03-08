@@ -16,20 +16,26 @@ For all manual input variables, see:
 
 ## Steps
 
-1. Validate infra inputs:
+1. Prepare cloud image:
+
+```bash
+mise run infra:prepare-image
+```
+
+2. Validate infra inputs:
 
 ```bash
 mise run infra:check
 ```
 
-2. Provision VM:
+3. Provision VM:
 
 ```bash
 mise run infra:init
 mise run infra:apply
 ```
 
-3. Deploy Omni to VM:
+4. Deploy Omni to VM:
 
 ```bash
 mise run omni:deploy-remote

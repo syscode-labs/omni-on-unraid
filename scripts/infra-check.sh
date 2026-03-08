@@ -30,4 +30,18 @@ echo "$OMNI_BASE_IMAGE_PATH" | grep -q '^/' || {
   exit 1
 }
 
+if [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
+  if ! ssh "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" "test -f '$OMNI_BASE_IMAGE_PATH'"; then
+    echo "Base image missing on remote libvirt host: $OMNI_BASE_IMAGE_PATH" >&2
+    echo "Run: mise run infra:prepare-image" >&2
+    exit 1
+  fi
+else
+  if [ ! -f "$OMNI_BASE_IMAGE_PATH" ]; then
+    echo "Base image missing locally: $OMNI_BASE_IMAGE_PATH" >&2
+    echo "Run: mise run infra:prepare-image" >&2
+    exit 1
+  fi
+fi
+
 echo "Infra preflight passed"
