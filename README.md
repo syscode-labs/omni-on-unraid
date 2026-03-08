@@ -15,10 +15,15 @@ mise run infra:apply
 mise run omni:deploy-remote
 ```
 
-## Containerized Tooling (No host toolchain dependency)
+## Containerized Tooling (Same Task UX, No Host Toolchain Dependency)
+
+Run the same `mise` tasks via container:
 
 ```bash
-./scripts/in-container.sh "./scripts/run-terraform.sh apply"
+./scripts/in-container.sh infra:prepare-image
+./scripts/in-container.sh infra:check
+./scripts/in-container.sh infra:apply
+./scripts/in-container.sh omni:deploy-remote
 ```
 
 Open interactive shell in tooling container:

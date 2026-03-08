@@ -9,7 +9,14 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -t "$IMAGE" "$ROOT_DIR/tools/ops-container"
 fi
 
-cmd="${*:-/bin/bash}"
+if [ $# -eq 0 ]; then
+  cmd="/bin/bash"
+elif [[ "$1" == *:* ]]; then
+  # Treat first arg as mise task name, keep host/container UX identical.
+  cmd="mise run $*"
+else
+  cmd="$*"
+fi
 
 docker run --rm -it \
   -v "$ROOT_DIR:/workspace" \
