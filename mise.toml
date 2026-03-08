@@ -1,15 +1,21 @@
 [tools]
 
+[tasks."infra:check"]
+description = "Validate required .env inputs for infra provisioning"
+run = "./scripts/infra-check.sh"
+
 [tasks."infra:init"]
 description = "Initialize Terraform for Omni VM infrastructure"
 run = "./scripts/run-terraform.sh init"
 
 [tasks."infra:plan"]
 description = "Plan Omni VM infrastructure changes"
+depends = ["infra:check"]
 run = "./scripts/run-terraform.sh plan"
 
 [tasks."infra:apply"]
 description = "Apply Omni VM infrastructure"
+depends = ["infra:check"]
 run = "./scripts/run-terraform.sh apply"
 
 [tasks."infra:destroy"]
