@@ -1,32 +1,24 @@
-data "libvirt_pool" "pool" {
-  name = var.pool_name
-}
-
-data "libvirt_network" "network" {
-  name = var.network_name
-}
-
 locals {
   fqdn = "${var.hostname}.${var.domain}"
 }
 
 resource "libvirt_volume" "base" {
   name   = "${var.vm_name}-base.qcow2"
-  pool   = data.libvirt_pool.pool.name
+  pool   = var.pool_name
   source = var.base_image_path
   format = "qcow2"
 }
 
 resource "libvirt_volume" "root" {
   name           = "${var.vm_name}.qcow2"
-  pool           = data.libvirt_pool.pool.name
+  pool           = var.pool_name
   base_volume_id = libvirt_volume.base.id
   size           = var.disk_size_bytes
 }
 
 resource "libvirt_cloudinit_disk" "seed" {
   name = "${var.vm_name}-seed.iso"
-  pool = data.libvirt_pool.pool.name
+  pool = var.pool_name
   user_data = templatefile("${path.module}/cloud-init.yaml.tmpl", {
     hostname           = var.hostname
     fqdn               = local.fqdn
@@ -53,7 +45,7 @@ resource "libvirt_domain" "vm" {
   }
 
   network_interface {
-    network_id = data.libvirt_network.network.id
+    network_name = var.network_name
   }
 
   console {

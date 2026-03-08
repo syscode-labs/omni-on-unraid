@@ -63,7 +63,6 @@ variable "tailscale_authkey" {
   type        = string
   description = "Tailscale auth key for VM bootstrap"
   default     = ""
-  sensitive   = true
 }
 
 variable "tailscale_hostname" {
