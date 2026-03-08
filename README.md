@@ -47,3 +47,5 @@ BACKUP=./backups/<file>.tar.gz mise run omni:restore
 
 - This repo is manual-operator driven (no CI apply workflow).
 - If custom domain TLS is required, cert/key paths must be provided in `.env` on target host.
+
+Operator-input SOP: `docs/sops/30-terraform-inputs-and-operator-vars.md`

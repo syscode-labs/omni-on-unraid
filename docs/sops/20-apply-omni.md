@@ -11,26 +11,22 @@ Provision Omni VM with Terraform and deploy Omni on it using repository automati
 - SSH key pair available
 - Tailscale auth key available for bootstrap (optional but recommended)
 
-## Terraform variables
+For all manual input variables, see:
 
-Set at least:
-
-- `TF_VAR_base_image_path` (Ubuntu cloud image path on libvirt host)
-- `TF_VAR_ssh_public_key`
-- `TF_VAR_tailscale_authkey` (optional)
-- `TF_VAR_tailscale_hostname` (recommended, e.g. `omni`)
+- `docs/sops/30-terraform-inputs-and-operator-vars.md`
 
 ## Steps
 
-1. Provision VM:
+1. Export required variables.
+2. Provision VM:
 
 ```bash
 mise run infra:init
 mise run infra:apply
 ```
 
-2. Identify VM address (libvirt lease or Tailscale IP).
-3. Deploy Omni to VM:
+3. Identify VM address (libvirt lease or Tailscale IP).
+4. Deploy Omni to VM:
 
 ```bash
 export OMNI_SSH_TARGET='omni@<vm-ip-or-ts-ip>'
