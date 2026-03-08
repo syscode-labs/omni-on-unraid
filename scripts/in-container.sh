@@ -13,16 +13,8 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   build_image
 fi
 
-# Self-heal stale image built before mise support.
-if ! docker run --rm "$IMAGE" "command -v mise >/dev/null 2>&1" >/dev/null 2>&1; then
-  build_image
-fi
-
 if [ $# -eq 0 ]; then
   cmd="/bin/bash"
-elif [[ "$1" == *:* ]]; then
-  # Treat first arg as mise task name, keep host/container UX identical.
-  cmd="mise trust -a -y >/dev/null 2>&1 || true; mise run $*"
 else
   cmd="$*"
 fi

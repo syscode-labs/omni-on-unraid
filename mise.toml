@@ -83,33 +83,33 @@ run = "./scripts/in-container.sh"
 
 [tasks."ctr:infra:prepare-image"]
 description = "Containerized infra:prepare-image"
-run = "./scripts/in-container.sh infra:prepare-image"
+run = "./scripts/prepare-base-image.sh"
 
 [tasks."ctr:infra:check"]
 description = "Containerized infra:check"
-run = "./scripts/in-container.sh infra:check"
+run = "./scripts/infra-check.sh"
 
 [tasks."ctr:infra:init"]
 description = "Containerized infra:init"
-run = "./scripts/in-container.sh infra:init"
+run = "./scripts/in-container.sh ./scripts/run-terraform.sh init"
 
 [tasks."ctr:infra:plan"]
 description = "Containerized infra:plan"
-run = "./scripts/in-container.sh infra:plan"
+run = "./scripts/in-container.sh ./scripts/run-terraform.sh plan"
 
 [tasks."ctr:infra:apply"]
 description = "Containerized infra:apply"
-run = "./scripts/in-container.sh infra:apply"
+depends = ["ctr:infra:check"]
+run = "./scripts/in-container.sh ./scripts/run-terraform.sh apply"
 
 [tasks."ctr:infra:destroy"]
 description = "Containerized infra:destroy"
-run = "./scripts/in-container.sh infra:destroy"
+run = "./scripts/in-container.sh ./scripts/run-terraform.sh destroy"
 
 [tasks."ctr:omni:deploy-remote"]
 description = "Containerized omni:deploy-remote"
-run = "./scripts/in-container.sh omni:deploy-remote"
+run = "./scripts/in-container.sh ./scripts/deploy-remote.sh"
 
 [tasks."ctr:stack:provision"]
 description = "Containerized stack provision (image -> apply -> deploy)"
 depends = ["ctr:infra:prepare-image", "ctr:infra:apply", "ctr:omni:deploy-remote"]
-

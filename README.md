@@ -15,7 +15,7 @@ mise run infra:apply
 mise run omni:deploy-remote
 ```
 
-## Containerized Tooling (Single `mise` Interface)
+## Containerized Tooling (Stable `mise` Interface)
 
 Run container-backed tasks through `mise`:
 
@@ -25,6 +25,8 @@ mise run ctr:infra:check
 mise run ctr:infra:apply
 mise run ctr:omni:deploy-remote
 ```
+
+Note: `ctr:infra:prepare-image` and `ctr:infra:check` run on host SSH intentionally; Terraform/apply stays containerized.
 
 Open interactive shell in tooling container:
 
