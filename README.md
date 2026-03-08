@@ -44,4 +44,5 @@ mise run ctr:shell
 - If using Unraid, VM/libvirt service must be enabled and reachable.
 - Full operator details: `docs/sops/`.
 - `ctr:omni:deploy-remote` auto-discovers VM IP from libvirt and renders a generated compose env (`generated/compose.env`) with sane defaults.
+- `OMNI_AUTH_ARGS` must be set to a valid Auth0/OIDC/SAML config; Omni exits if no auth provider is enabled.
 - Prereq checklist: `docs/sops/50-prereq-checklist.md`.
