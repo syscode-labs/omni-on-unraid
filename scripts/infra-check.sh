@@ -12,13 +12,23 @@ fi
 # shellcheck disable=SC1090,SC1091
 source "$ENV_FILE"
 
-required=(OMNI_BASE_IMAGE_PATH OMNI_SSH_PUBLIC_KEY_PATH OMNI_LIBVIRT_URI)
+# Derive OMNI_LIBVIRT_URI if omitted.
+if [ -z "${OMNI_LIBVIRT_URI:-}" ] && [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
+  OMNI_LIBVIRT_URI="qemu+ssh://${OMNI_LIBVIRT_IMAGE_SSH_TARGET}/system"
+fi
+
+required=(OMNI_BASE_IMAGE_PATH OMNI_SSH_PUBLIC_KEY_PATH)
 for key in "${required[@]}"; do
   if [ -z "${!key:-}" ]; then
     echo "Missing required .env value: ${key}" >&2
     exit 1
   fi
 done
+
+if [ -z "${OMNI_LIBVIRT_URI:-}" ]; then
+  echo "Missing libvirt URI: set OMNI_LIBVIRT_URI or OMNI_LIBVIRT_IMAGE_SSH_TARGET" >&2
+  exit 1
+fi
 
 if [ ! -f "$OMNI_SSH_PUBLIC_KEY_PATH" ]; then
   echo "SSH public key file not found: $OMNI_SSH_PUBLIC_KEY_PATH" >&2
