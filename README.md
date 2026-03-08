@@ -37,6 +37,7 @@ mise run ctr:shell
 ## Important
 
 - `OMNI_LIBVIRT_URI` must point to your actual libvirt endpoint.
+- Terraform reads base image from local operator path (`OMNI_LOCAL_BASE_IMAGE_PATH`), then imports into libvirt pool.
 - If using Unraid, VM/libvirt service must be enabled and reachable.
 - Full operator details: `docs/sops/`.
 - Prereq checklist: `docs/sops/50-prereq-checklist.md`.

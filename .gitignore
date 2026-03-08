@@ -5,3 +5,4 @@
 crash.log
 terraform/libvirt/.terraform/
 generated/
+.cache/

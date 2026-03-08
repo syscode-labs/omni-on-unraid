@@ -13,19 +13,22 @@ fi
 source "$ENV_FILE"
 
 OMNI_BASE_IMAGE_URL="${OMNI_BASE_IMAGE_URL:-https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img}"
-OMNI_BASE_IMAGE_PATH="${OMNI_BASE_IMAGE_PATH:?set OMNI_BASE_IMAGE_PATH in .env}"
+LOCAL_BASE_IMAGE_PATH="${OMNI_LOCAL_BASE_IMAGE_PATH:-${ROOT_DIR}/.cache/images/ubuntu-noble-cloudimg-amd64.qcow2}"
+REMOTE_BASE_IMAGE_PATH="${OMNI_BASE_IMAGE_PATH:-}"
 LIBVIRT_TARGET="${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}"
 
-if [ -n "$LIBVIRT_TARGET" ]; then
-  ssh "$LIBVIRT_TARGET" "mkdir -p '$(dirname "$OMNI_BASE_IMAGE_PATH")'"
-  ssh "$LIBVIRT_TARGET" "if [ ! -f '$OMNI_BASE_IMAGE_PATH' ]; then curl -fL '$OMNI_BASE_IMAGE_URL' -o '$OMNI_BASE_IMAGE_PATH'; fi"
-  ssh "$LIBVIRT_TARGET" "ls -lh '$OMNI_BASE_IMAGE_PATH'"
-  echo "Prepared base image on libvirt host via SSH target ${LIBVIRT_TARGET}"
-else
-  mkdir -p "$(dirname "$OMNI_BASE_IMAGE_PATH")"
-  if [ ! -f "$OMNI_BASE_IMAGE_PATH" ]; then
-    curl -fL "$OMNI_BASE_IMAGE_URL" -o "$OMNI_BASE_IMAGE_PATH"
+mkdir -p "$(dirname "$LOCAL_BASE_IMAGE_PATH")"
+if [ ! -f "$LOCAL_BASE_IMAGE_PATH" ]; then
+  curl -fL "$OMNI_BASE_IMAGE_URL" -o "$LOCAL_BASE_IMAGE_PATH"
+fi
+ls -lh "$LOCAL_BASE_IMAGE_PATH"
+echo "Prepared local base image for Terraform at ${LOCAL_BASE_IMAGE_PATH}"
+
+if [ -n "$LIBVIRT_TARGET" ] && [ -n "$REMOTE_BASE_IMAGE_PATH" ]; then
+  ssh "$LIBVIRT_TARGET" "mkdir -p '$(dirname "$REMOTE_BASE_IMAGE_PATH")'"
+  if ! ssh "$LIBVIRT_TARGET" "test -f '$REMOTE_BASE_IMAGE_PATH'"; then
+    scp "$LOCAL_BASE_IMAGE_PATH" "$LIBVIRT_TARGET:$REMOTE_BASE_IMAGE_PATH"
   fi
-  ls -lh "$OMNI_BASE_IMAGE_PATH"
-  echo "Prepared base image on local filesystem"
+  ssh "$LIBVIRT_TARGET" "ls -lh '$REMOTE_BASE_IMAGE_PATH'"
+  echo "Prepared remote base image copy on libvirt host at ${REMOTE_BASE_IMAGE_PATH}"
 fi

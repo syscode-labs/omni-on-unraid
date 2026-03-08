@@ -18,7 +18,7 @@ if [ -z "${OMNI_LIBVIRT_URI:-}" ] && [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]
   OMNI_LIBVIRT_URI="qemu+tcp://${libvirt_host}/system"
 fi
 
-required=(OMNI_BASE_IMAGE_PATH OMNI_SSH_PUBLIC_KEY_PATH)
+required=(OMNI_SSH_PUBLIC_KEY_PATH)
 for key in "${required[@]}"; do
   if [ -z "${!key:-}" ]; then
     echo "Missing required .env value: ${key}" >&2
@@ -36,10 +36,16 @@ if [ ! -f "$OMNI_SSH_PUBLIC_KEY_PATH" ]; then
   exit 1
 fi
 
-echo "$OMNI_BASE_IMAGE_PATH" | grep -q '^/' || {
-  echo "OMNI_BASE_IMAGE_PATH must be an absolute path" >&2
+local_base_image_path="${OMNI_LOCAL_BASE_IMAGE_PATH:-${ROOT_DIR}/.cache/images/ubuntu-noble-cloudimg-amd64.qcow2}"
+if [ -n "${OMNI_BASE_IMAGE_PATH:-}" ] && [ -f "${OMNI_BASE_IMAGE_PATH:-}" ]; then
+  local_base_image_path="$OMNI_BASE_IMAGE_PATH"
+fi
+
+if [ ! -f "$local_base_image_path" ]; then
+  echo "Local base image missing for Terraform: $local_base_image_path" >&2
+  echo "Run: mise run infra:prepare-image" >&2
   exit 1
-}
+fi
 
 if [[ "$OMNI_LIBVIRT_URI" == qemu:///system ]]; then
   echo "OMNI_LIBVIRT_URI is local qemu:///system; this requires local libvirtd running on your machine" >&2
@@ -49,18 +55,6 @@ if [ -n "${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}" ]; then
   if ! ssh -o BatchMode=yes "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" 'echo ok' >/dev/null 2>&1; then
     echo "SSH connectivity failed for OMNI_LIBVIRT_IMAGE_SSH_TARGET: $OMNI_LIBVIRT_IMAGE_SSH_TARGET" >&2
     echo "Validate manually: ssh -o BatchMode=yes $OMNI_LIBVIRT_IMAGE_SSH_TARGET 'echo ok'" >&2
-    exit 1
-  fi
-
-  if ! ssh -o BatchMode=yes "$OMNI_LIBVIRT_IMAGE_SSH_TARGET" "test -f '$OMNI_BASE_IMAGE_PATH'"; then
-    echo "Base image missing on remote libvirt host: $OMNI_BASE_IMAGE_PATH" >&2
-    echo "Run: mise run infra:prepare-image" >&2
-    exit 1
-  fi
-else
-  if [ ! -f "$OMNI_BASE_IMAGE_PATH" ]; then
-    echo "Base image missing locally: $OMNI_BASE_IMAGE_PATH" >&2
-    echo "Run: mise run infra:prepare-image" >&2
     exit 1
   fi
 fi

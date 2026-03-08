@@ -19,7 +19,14 @@ else
   cmd="$*"
 fi
 
-docker run --rm -it \
+docker_flags=(--rm)
+if [ -t 0 ] && [ -t 1 ]; then
+  docker_flags+=( -it )
+else
+  docker_flags+=( -i )
+fi
+
+docker run "${docker_flags[@]}" \
   -v "$ROOT_DIR:/workspace" \
   -v "$HOME/.ssh:/root/.ssh:ro" \
   -v "$HOME:$HOME:ro" \
