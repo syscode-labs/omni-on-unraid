@@ -1,0 +1,33 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${fqdn}
+manage_etc_hosts: true
+
+users:
+  - name: ${ssh_username}
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - docker.io
+  - docker-compose-v2
+  - qemu-guest-agent
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - systemctl enable --now docker
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - systemctl enable --now tailscaled
+  - |
+      if [ -n "${tailscale_authkey}" ]; then
+        tailscale up --auth-key "${tailscale_authkey}" --hostname "${tailscale_hostname}" --ssh
+      fi
+  - mkdir -p /opt/omni
+  - chown -R ${ssh_username}:${ssh_username} /opt/omni

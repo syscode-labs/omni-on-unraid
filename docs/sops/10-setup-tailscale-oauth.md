@@ -1,7 +1,23 @@
-# SOP: Setup Tailscale OAuth for CI (Optional)
+# SOP: Setup Tailscale Bootstrap Credentials
 
 ## Status
 
-Not required for current Omni operation.
+CI OAuth is not required for this repo (manual operator flow).
 
-This SOP is retained for future use if a CI-based deployment path is reintroduced.
+For VM bootstrap, provide `TF_VAR_tailscale_authkey` to Terraform cloud-init.
+
+## Steps
+
+1. Create a tagged auth key in Tailscale admin.
+2. Export before Terraform apply:
+
+```bash
+export TF_VAR_tailscale_authkey='tskey-...'
+export TF_VAR_tailscale_hostname='omni'
+```
+
+3. Run:
+
+```bash
+mise run infra:apply
+```

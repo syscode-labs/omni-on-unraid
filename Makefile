@@ -1,4 +1,16 @@
-.PHONY: doctor render up down backup restore apply
+.PHONY: infra-init infra-plan infra-apply infra-destroy doctor render up down backup restore deploy-remote stack-provision
+
+infra-init:
+	mise run infra:init
+
+infra-plan:
+	mise run infra:plan
+
+infra-apply:
+	mise run infra:apply
+
+infra-destroy:
+	mise run infra:destroy
 
 doctor:
 	mise run omni:doctor
@@ -22,5 +34,8 @@ restore:
 	fi
 	BACKUP="$(BACKUP)" mise run omni:restore
 
-apply:
-	mise run omni:apply
+deploy-remote:
+	mise run omni:deploy-remote
+
+stack-provision:
+	mise run stack:provision

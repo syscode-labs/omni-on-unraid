@@ -1,5 +1,21 @@
 [tools]
 
+[tasks."infra:init"]
+description = "Initialize Terraform for Omni VM infrastructure"
+run = "cd terraform/libvirt && terraform init"
+
+[tasks."infra:plan"]
+description = "Plan Omni VM infrastructure changes"
+run = "cd terraform/libvirt && terraform plan"
+
+[tasks."infra:apply"]
+description = "Apply Omni VM infrastructure"
+run = "cd terraform/libvirt && terraform apply"
+
+[tasks."infra:destroy"]
+description = "Destroy Omni VM infrastructure"
+run = "cd terraform/libvirt && terraform destroy"
+
 [tasks."omni:doctor"]
 description = "Validate local prerequisites for Omni operations"
 run = '''
@@ -43,6 +59,10 @@ fi
 ./scripts/restore.sh "$BACKUP"
 '''
 
-[tasks."omni:apply"]
-description = "Local one-shot apply (render + up)"
-depends = ["omni:render", "omni:up"]
+[tasks."omni:deploy-remote"]
+description = "Sync repo to Omni VM and apply Omni there"
+run = "./scripts/deploy-remote.sh"
+
+[tasks."stack:provision"]
+description = "Provision VM infra then deploy Omni remotely"
+depends = ["infra:apply", "omni:deploy-remote"]

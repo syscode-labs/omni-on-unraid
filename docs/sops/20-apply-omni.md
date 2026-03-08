@@ -1,52 +1,51 @@
-# SOP: Apply Omni on Unraid (Manual)
+# SOP: Provision and Apply Omni (IaC)
 
 ## Purpose
 
-Deploy or update Omni stack on Unraid without CI.
+Provision Omni VM with Terraform and deploy Omni on it using repository automation tasks.
 
 ## Prerequisites
 
-- SSH access to Unraid host
-- `.env` values ready
-- required host prerequisites already satisfied
+- Unraid/libvirt reachable from operator machine
+- Terraform and mise installed
+- SSH key pair available
+- Tailscale auth key available for bootstrap (optional but recommended)
 
-## Steps (mise)
+## Terraform variables
 
-1. Prepare env file:
+Set at least:
+
+- `TF_VAR_base_image_path` (Ubuntu cloud image path on libvirt host)
+- `TF_VAR_ssh_public_key`
+- `TF_VAR_tailscale_authkey` (optional)
+- `TF_VAR_tailscale_hostname` (recommended, e.g. `omni`)
+
+## Steps
+
+1. Provision VM:
 
 ```bash
-cp templates/omni.env.example .env
+mise run infra:init
+mise run infra:apply
 ```
 
-2. Edit `.env` with domain/cert/secrets.
-3. Run prerequisite checks:
+2. Identify VM address (libvirt lease or Tailscale IP).
+3. Deploy Omni to VM:
 
 ```bash
-mise run omni:doctor
-```
-
-4. Apply stack:
-
-```bash
-mise run omni:apply
+export OMNI_SSH_TARGET='omni@<vm-ip-or-ts-ip>'
+mise run omni:deploy-remote
 ```
 
 ## Validation
 
-1. Check Omni containers are healthy.
-2. Reach Omni UI/API endpoint.
-3. Confirm logs show successful startup.
+- VM is reachable via SSH
+- `tailscale status` on VM shows connected (if enabled)
+- Omni container is running and healthy
+- Omni endpoint responds
 
 ## Rollback
 
-1. Stop stack:
-
 ```bash
-mise run omni:down
-```
-
-2. Restore backup if needed:
-
-```bash
-BACKUP=./backups/<file>.tar.gz mise run omni:restore
+mise run infra:destroy
 ```
