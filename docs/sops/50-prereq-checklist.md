@@ -55,7 +55,7 @@ If running on host:
 If avoiding host deps, run via container wrapper:
 
 ```bash
-./scripts/in-container.sh infra:apply
+mise run ctr:infra:apply
 ```
 
 ## Recommended run order

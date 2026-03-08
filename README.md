@@ -15,21 +15,21 @@ mise run infra:apply
 mise run omni:deploy-remote
 ```
 
-## Containerized Tooling (Same Task UX, No Host Toolchain Dependency)
+## Containerized Tooling (Single `mise` Interface)
 
-Run the same `mise` tasks via container:
+Run container-backed tasks through `mise`:
 
 ```bash
-./scripts/in-container.sh infra:prepare-image
-./scripts/in-container.sh infra:check
-./scripts/in-container.sh infra:apply
-./scripts/in-container.sh omni:deploy-remote
+mise run ctr:infra:prepare-image
+mise run ctr:infra:check
+mise run ctr:infra:apply
+mise run ctr:omni:deploy-remote
 ```
 
 Open interactive shell in tooling container:
 
 ```bash
-./scripts/in-container.sh
+mise run ctr:shell
 ```
 
 ## Important

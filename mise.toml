@@ -76,3 +76,40 @@ run = "./scripts/deploy-remote.sh"
 [tasks."stack:provision"]
 description = "Provision VM infra then deploy Omni remotely"
 depends = ["infra:prepare-image", "infra:apply", "omni:deploy-remote"]
+
+[tasks."ctr:shell"]
+description = "Open interactive shell in ops container"
+run = "./scripts/in-container.sh"
+
+[tasks."ctr:infra:prepare-image"]
+description = "Containerized infra:prepare-image"
+run = "./scripts/in-container.sh infra:prepare-image"
+
+[tasks."ctr:infra:check"]
+description = "Containerized infra:check"
+run = "./scripts/in-container.sh infra:check"
+
+[tasks."ctr:infra:init"]
+description = "Containerized infra:init"
+run = "./scripts/in-container.sh infra:init"
+
+[tasks."ctr:infra:plan"]
+description = "Containerized infra:plan"
+run = "./scripts/in-container.sh infra:plan"
+
+[tasks."ctr:infra:apply"]
+description = "Containerized infra:apply"
+run = "./scripts/in-container.sh infra:apply"
+
+[tasks."ctr:infra:destroy"]
+description = "Containerized infra:destroy"
+run = "./scripts/in-container.sh infra:destroy"
+
+[tasks."ctr:omni:deploy-remote"]
+description = "Containerized omni:deploy-remote"
+run = "./scripts/in-container.sh omni:deploy-remote"
+
+[tasks."ctr:stack:provision"]
+description = "Containerized stack provision (image -> apply -> deploy)"
+depends = ["ctr:infra:prepare-image", "ctr:infra:apply", "ctr:omni:deploy-remote"]
+
