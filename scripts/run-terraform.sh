@@ -62,6 +62,10 @@ if [ -z "${TF_VAR_tailscale_hostname:-}" ] && [ -n "${OMNI_TAILSCALE_HOSTNAME:-}
   export TF_VAR_tailscale_hostname="$OMNI_TAILSCALE_HOSTNAME"
 fi
 
+if [ -z "${TF_VAR_network_bridge:-}" ] && [ -n "${OMNI_LIBVIRT_NETWORK:-}" ]; then
+  export TF_VAR_network_bridge="$OMNI_LIBVIRT_NETWORK"
+fi
+
 cd "$TF_DIR"
 case "$action" in
   init)
@@ -76,6 +80,9 @@ case "$action" in
     tf_apply_args=()
     if [ "${TF_AUTO_APPROVE:-1}" = "1" ]; then
       tf_apply_args+=("-auto-approve")
+    fi
+    if [ "${TF_REPLACE_DOMAIN:-0}" = "1" ]; then
+      tf_apply_args+=("-replace=libvirt_domain.vm")
     fi
     terraform apply "${tf_apply_args[@]}"
     ;;

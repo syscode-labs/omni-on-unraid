@@ -108,7 +108,7 @@ run = "./scripts/in-container.sh ./scripts/run-terraform.sh destroy"
 
 [tasks."ctr:omni:deploy-remote"]
 description = "Containerized omni:deploy-remote"
-run = "./scripts/in-container.sh ./scripts/deploy-remote.sh"
+run = "./scripts/deploy-remote.sh"
 
 [tasks."ctr:stack:provision"]
 description = "Containerized stack provision (image -> apply -> deploy)"

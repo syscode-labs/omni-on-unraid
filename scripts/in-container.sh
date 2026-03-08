@@ -19,6 +19,13 @@ else
   cmd="$*"
 fi
 
+env_args=()
+for v in TF_REPLACE_DOMAIN TF_AUTO_APPROVE TF_VAR_libvirt_uri TF_VAR_base_image_path TF_VAR_network_bridge TF_VAR_ssh_public_key TF_VAR_tailscale_authkey TF_VAR_tailscale_hostname; do
+  if [ -n "${!v:-}" ]; then
+    env_args+=( -e "$v=${!v}" )
+  fi
+done
+
 docker_flags=(--rm)
 if [ -t 0 ] && [ -t 1 ]; then
   docker_flags+=( -it )
@@ -27,6 +34,7 @@ else
 fi
 
 docker run "${docker_flags[@]}" \
+  "${env_args[@]}" \
   -v "$ROOT_DIR:/workspace" \
   -v "$HOME/.ssh:/root/.ssh:ro" \
   -v "$HOME:$HOME:ro" \

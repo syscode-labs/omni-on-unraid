@@ -9,16 +9,106 @@ if [ -f "$ENV_FILE" ]; then
   source "$ENV_FILE"
 fi
 
-default_target="${OMNI_SSH_USER:-omni}@${OMNI_TAILSCALE_HOSTNAME:-omni}"
-TARGET="${OMNI_SSH_TARGET:-$default_target}"
+SSH_USER="${OMNI_SSH_USER:-omni}"
+TARGET="${OMNI_SSH_TARGET:-}"
 REMOTE_DIR="${OMNI_REMOTE_DIR:-/opt/omni}"
+VM_NAME="${OMNI_VM_NAME:-omni-vm}"
+JUMP_HOST="${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}"
+JUMP_STAGE_DIR="${OMNI_JUMP_STAGE_DIR:-/tmp/omni-deploy-src}"
+BASE_SSH_OPTS="${OMNI_SSH_OPTS:--o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5}"
+
+if [ -z "$TARGET" ]; then
+  libvirt_uri="${OMNI_LIBVIRT_URI:-}"
+  if [ -z "$libvirt_uri" ] && [ -n "$JUMP_HOST" ]; then
+    libvirt_host="${JUMP_HOST#*@}"
+    libvirt_uri="qemu+tcp://${libvirt_host}/system"
+  fi
+
+  if [ -n "$libvirt_uri" ]; then
+    for _ in $(seq 1 30); do
+      ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source lease 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); print a[1]; exit}')"
+      if [ -z "$ip" ]; then
+        ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source agent 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); print a[1]; exit}')"
+      fi
+      if [ -n "$ip" ]; then
+        TARGET="${SSH_USER}@${ip}"
+        break
+      fi
+      sleep 5
+    done
+  fi
+fi
+
+if [ -z "$TARGET" ]; then
+  echo "Could not resolve VM IP from libvirt leases" >&2
+  echo "Set OMNI_SSH_TARGET explicitly in .env (for example: omni@<vm-ip>)" >&2
+  exit 1
+fi
+
+EXCLUDES=(
+  --exclude '.git'
+  --exclude '.terraform'
+  --exclude 'terraform/libvirt/.terraform'
+  --exclude 'terraform/libvirt/*.tfstate*'
+  --exclude 'generated'
+)
+
+# For libvirt NAT guests, relay through libvirt host instead of ProxyJump.
+if [ -n "$JUMP_HOST" ] && [[ "$TARGET" =~ @192\.168\.122\.[0-9]+$ ]]; then
+  rsync -az --delete \
+    -e "ssh $BASE_SSH_OPTS" \
+    "${EXCLUDES[@]}" \
+    "${ROOT_DIR}/" "${JUMP_HOST}:${JUMP_STAGE_DIR}/"
+
+  ssh -A $BASE_SSH_OPTS "$JUMP_HOST" bash -s -- "$TARGET" "$REMOTE_DIR" "$JUMP_STAGE_DIR" <<'REMOTE'
+set -euo pipefail
+TARGET="$1"
+REMOTE_DIR="$2"
+STAGE_DIR="$3"
+SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
+
+for _ in $(seq 1 60); do
+  if ssh $SSH_OPTS "$TARGET" 'echo ok' >/dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+
+if ! ssh $SSH_OPTS "$TARGET" 'echo ok' >/dev/null 2>&1; then
+  echo "SSH is not reachable on target from jump host: $TARGET" >&2
+  exit 1
+fi
 
 rsync -az --delete \
+  -e "ssh $SSH_OPTS" \
   --exclude '.git' \
   --exclude '.terraform' \
   --exclude 'terraform/libvirt/.terraform' \
   --exclude 'terraform/libvirt/*.tfstate*' \
   --exclude 'generated' \
+  "${STAGE_DIR}/" "${TARGET}:${REMOTE_DIR}/"
+
+ssh $SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ./scripts/render.sh && ./scripts/up.sh"
+REMOTE
+
+  exit 0
+fi
+
+for _ in $(seq 1 30); do
+  if ssh $BASE_SSH_OPTS "$TARGET" 'echo ok' >/dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+
+if ! ssh $BASE_SSH_OPTS "$TARGET" 'echo ok' >/dev/null 2>&1; then
+  echo "SSH is not reachable on target: $TARGET" >&2
+  exit 1
+fi
+
+rsync -az --delete \
+  -e "ssh $BASE_SSH_OPTS" \
+  "${EXCLUDES[@]}" \
   "${ROOT_DIR}/" "${TARGET}:${REMOTE_DIR}/"
 
-ssh "${TARGET}" "cd '${REMOTE_DIR}' && ./scripts/render.sh && ./scripts/up.sh"
+ssh $BASE_SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ./scripts/render.sh && ./scripts/up.sh"

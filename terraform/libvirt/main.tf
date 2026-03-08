@@ -45,7 +45,7 @@ resource "libvirt_domain" "vm" {
   }
 
   network_interface {
-    network_name = var.network_name
+    bridge = var.network_bridge
   }
 
   console {

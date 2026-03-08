@@ -9,9 +9,10 @@ variable "pool_name" {
   default = "default"
 }
 
-variable "network_name" {
-  type    = string
-  default = "default"
+variable "network_bridge" {
+  type        = string
+  description = "Host bridge interface for VM NIC (Unraid typically br0)"
+  default     = "br0"
 }
 
 variable "vm_name" {

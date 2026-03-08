@@ -37,6 +37,8 @@ mise run ctr:shell
 ## Important
 
 - `OMNI_LIBVIRT_URI` must point to your actual libvirt endpoint.
+- `OMNI_LIBVIRT_NETWORK` defaults to `br0` for direct LAN IPs; set to `default` only if you intentionally want NAT.
+- With `br0`, your LAN DHCP must lease to VM MACs on that bridge; if not, `ens3` stays without IPv4 and deploy will fail.
 - Terraform reads base image from local operator path (`OMNI_LOCAL_BASE_IMAGE_PATH`), then imports into libvirt pool.
 - If using Unraid, VM/libvirt service must be enabled and reachable.
 - Full operator details: `docs/sops/`.
