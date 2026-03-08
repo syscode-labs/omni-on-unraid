@@ -22,7 +22,7 @@ if [ $# -eq 0 ]; then
   cmd="/bin/bash"
 elif [[ "$1" == *:* ]]; then
   # Treat first arg as mise task name, keep host/container UX identical.
-  cmd="mise run $*"
+  cmd="mise trust -a -y >/dev/null 2>&1 || true; mise run $*"
 else
   cmd="$*"
 fi
@@ -31,6 +31,5 @@ docker run --rm -it \
   -v "$ROOT_DIR:/workspace" \
   -v "$HOME/.ssh:/root/.ssh:ro" \
   -v "$HOME:$HOME:ro" \
-  -e HOME="$HOME" \
   -w /workspace \
   "$IMAGE" "$cmd"
