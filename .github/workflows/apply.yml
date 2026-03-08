@@ -3,39 +3,76 @@ name: apply
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TAILSCALE_OAUTH_SECRET: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      UNRAID_HOST: ${{ secrets.UNRAID_HOST }}
+      UNRAID_USER: ${{ secrets.UNRAID_USER }}
+      UNRAID_SSH_PRIVATE_KEY: ${{ secrets.UNRAID_SSH_PRIVATE_KEY }}
+      UNRAID_TARGET_DIR: ${{ secrets.UNRAID_TARGET_DIR }}
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Validate required secrets
-        env:
-          UNRAID_HOST: ${{ secrets.UNRAID_HOST }}
-          UNRAID_USER: ${{ secrets.UNRAID_USER }}
-          UNRAID_SSH_PRIVATE_KEY: ${{ secrets.UNRAID_SSH_PRIVATE_KEY }}
-          UNRAID_TARGET_DIR: ${{ secrets.UNRAID_TARGET_DIR }}
         run: |
-          for key in UNRAID_HOST UNRAID_USER UNRAID_SSH_PRIVATE_KEY UNRAID_TARGET_DIR; do
+          required=(UNRAID_HOST UNRAID_USER UNRAID_SSH_PRIVATE_KEY UNRAID_TARGET_DIR)
+          for key in "${required[@]}"; do
             if [ -z "${!key:-}" ]; then
               echo "Missing required secret: ${key}" >&2
               exit 1
             fi
           done
 
+          has_oauth=true
+          if [ -z "${TAILSCALE_OAUTH_CLIENT_ID:-}" ] || [ -z "${TAILSCALE_OAUTH_SECRET:-}" ]; then
+            has_oauth=false
+          fi
+
+          has_authkey=true
+          if [ -z "${TAILSCALE_AUTHKEY:-}" ]; then
+            has_authkey=false
+          fi
+
+          if [ "$has_oauth" != "true" ] && [ "$has_authkey" != "true" ]; then
+            echo "Missing Tailscale credentials: set OAuth client secrets (preferred) or TAILSCALE_AUTHKEY" >&2
+            exit 1
+          fi
+
+      - name: Connect runner to tailnet (OAuth)
+        if: ${{ env.TAILSCALE_OAUTH_CLIENT_ID != '' && env.TAILSCALE_OAUTH_SECRET != '' }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Connect runner to tailnet (Authkey fallback)
+        if: ${{ env.TAILSCALE_OAUTH_CLIENT_ID == '' || env.TAILSCALE_OAUTH_SECRET == '' }}
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tags: tag:ci
+
       - name: Configure SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.UNRAID_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          echo "$UNRAID_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.UNRAID_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$UNRAID_HOST" >> ~/.ssh/known_hosts
 
       - name: Sync repository to Unraid
         run: |
-          rsync -az --delete ./ "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}:${{ secrets.UNRAID_TARGET_DIR }}/"
+          rsync -az --delete ./ "$UNRAID_USER@$UNRAID_HOST:$UNRAID_TARGET_DIR/"
 
       - name: Render and apply Omni on Unraid
         run: |
-          ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" \
-            "cd '${{ secrets.UNRAID_TARGET_DIR }}' && ./scripts/render.sh && ./scripts/up.sh"
+          ssh "$UNRAID_USER@$UNRAID_HOST" \
+            "cd '$UNRAID_TARGET_DIR' && ./scripts/render.sh && ./scripts/up.sh"
