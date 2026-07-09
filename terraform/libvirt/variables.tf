@@ -22,7 +22,20 @@ variable "vm_name" {
 
 variable "base_image_path" {
   type        = string
-  description = "Path to Ubuntu cloud image qcow2 available on libvirt host"
+  description = "Path to Ubuntu cloud image qcow2 on the operator machine (uploaded via libvirt). Only used when base_image_pool is unset."
+  default     = null
+}
+
+variable "base_image_pool" {
+  type        = string
+  description = "Libvirt pool that already contains the base image on the host (avoids upload). Takes precedence over base_image_path."
+  default     = null
+}
+
+variable "base_image_name" {
+  type        = string
+  description = "Volume name of the base image in base_image_pool."
+  default     = "ubuntu-noble-cloudimg-amd64.qcow2"
 }
 
 variable "disk_size_bytes" {

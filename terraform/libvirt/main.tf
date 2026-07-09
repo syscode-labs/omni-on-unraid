@@ -2,7 +2,9 @@ locals {
   fqdn = "${var.hostname}.${var.domain}"
 }
 
+# Upload base image from operator machine (only used when base_image_pool is unset)
 resource "libvirt_volume" "base" {
+  count  = var.base_image_pool == null ? 1 : 0
   name   = "${var.vm_name}-base.qcow2"
   pool   = var.pool_name
   source = var.base_image_path
@@ -10,10 +12,12 @@ resource "libvirt_volume" "base" {
 }
 
 resource "libvirt_volume" "root" {
-  name           = "${var.vm_name}.qcow2"
-  pool           = var.pool_name
-  base_volume_id = libvirt_volume.base.id
-  size           = var.disk_size_bytes
+  name             = "${var.vm_name}.qcow2"
+  pool             = var.pool_name
+  base_volume_id   = var.base_image_pool == null ? libvirt_volume.base[0].id : null
+  base_volume_pool = var.base_image_pool
+  base_volume_name = var.base_image_pool != null ? var.base_image_name : null
+  size             = var.disk_size_bytes
 }
 
 resource "libvirt_cloudinit_disk" "seed" {

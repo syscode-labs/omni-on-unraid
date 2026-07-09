@@ -1,0 +1,2 @@
+libvirt:
+  uri: qemu+libssh://omniops@unraid.example.internal/system?known_hosts_verify=ignore

@@ -20,7 +20,7 @@ else
 fi
 
 env_args=()
-for v in TF_REPLACE_DOMAIN TF_AUTO_APPROVE TF_VAR_libvirt_uri TF_VAR_base_image_path TF_VAR_network_bridge TF_VAR_ssh_public_key TF_VAR_tailscale_authkey TF_VAR_tailscale_hostname; do
+for v in TF_REPLACE_DOMAIN TF_AUTO_APPROVE TF_VAR_libvirt_uri TF_VAR_base_image_path TF_VAR_network_bridge TF_VAR_ssh_public_key TF_VAR_tailscale_authkey TF_VAR_tailscale_hostname OMNI_AUTH_ARGS; do
   if [ -n "${!v:-}" ]; then
     env_args+=( -e "$v=${!v}" )
   fi

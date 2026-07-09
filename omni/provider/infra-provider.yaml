@@ -1,0 +1,5 @@
+metadata:
+  namespace: infra-provider
+  type: InfraProviders.omni.sidero.dev
+  id: libvirt
+spec: {}

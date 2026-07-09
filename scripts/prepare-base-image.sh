@@ -17,6 +17,25 @@ LOCAL_BASE_IMAGE_PATH="${OMNI_LOCAL_BASE_IMAGE_PATH:-${ROOT_DIR}/.cache/images/u
 REMOTE_BASE_IMAGE_PATH="${OMNI_BASE_IMAGE_PATH:-}"
 LIBVIRT_TARGET="${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}"
 
+BASE_IMAGE_POOL="${OMNI_LIBVIRT_BASE_IMAGE_POOL:-}"
+
+# If a server-side image pool is configured and we have an SSH target, download directly on the server.
+# This avoids downloading locally and re-uploading (two 600MB transfers → one).
+if [ -n "$BASE_IMAGE_POOL" ] && [ -n "$LIBVIRT_TARGET" ] && [ -n "$REMOTE_BASE_IMAGE_PATH" ]; then
+  ssh "$LIBVIRT_TARGET" "mkdir -p '$(dirname "$REMOTE_BASE_IMAGE_PATH")'"
+  if ssh "$LIBVIRT_TARGET" "test -f '$REMOTE_BASE_IMAGE_PATH'"; then
+    ssh "$LIBVIRT_TARGET" "ls -lh '$REMOTE_BASE_IMAGE_PATH'"
+    echo "Remote base image already present at ${REMOTE_BASE_IMAGE_PATH} — skipping download"
+  else
+    echo "Downloading base image directly on ${LIBVIRT_TARGET} …"
+    ssh "$LIBVIRT_TARGET" "curl -fL '$OMNI_BASE_IMAGE_URL' -o '$REMOTE_BASE_IMAGE_PATH'"
+    ssh "$LIBVIRT_TARGET" "ls -lh '$REMOTE_BASE_IMAGE_PATH'"
+    echo "Downloaded base image on libvirt host at ${REMOTE_BASE_IMAGE_PATH}"
+  fi
+  exit 0
+fi
+
+# Fallback: download locally, then scp if a remote target is configured.
 mkdir -p "$(dirname "$LOCAL_BASE_IMAGE_PATH")"
 if [ ! -f "$LOCAL_BASE_IMAGE_PATH" ]; then
   curl -fL "$OMNI_BASE_IMAGE_URL" -o "$LOCAL_BASE_IMAGE_PATH"

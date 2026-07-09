@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.15.0/.schema/devbox.schema.json",
+  "packages": [
+    "go_1_25",
+    "goreleaser",
+    "kubernetes-helm",
+    "kubectl",
+    "kustomize",
+    "sops",
+    "path:.#omnictl"
+  ],
+  "shell": {
+    "scripts": {
+      "test": "go test ./...",
+      "render:machineclass": "go run ./cmd/omni-render machineclass --output generated/machineclass.yaml",
+      "render:cluster": "go run ./cmd/omni-render cluster --output generated/cluster.yaml",
+      "render:pocketid-oidc": "go run ./cmd/omni-render pocketid-oidc-sql --output generated/pocket-id-omni-oidc-client.sql",
+      "provider:apply": "omnictl apply -f omni/provider/infra-provider.yaml && go run ./cmd/omni-render provider-config --output generated/provider/libvirt-config.yaml && docker compose -f omni/provider/docker-compose.yml --env-file .env up -d",
+      "provider:status": "docker compose -f omni/provider/docker-compose.yml --env-file .env ps",
+      "machineclass:apply": "omnictl apply -f omni/machine-classes/control-plane.yaml && omnictl apply -f omni/machine-classes/worker.yaml",
+      "cluster:apply": "omnictl cluster template validate -f omni/cluster-templates/unraid-lab.yaml && omnictl cluster template sync -f omni/cluster-templates/unraid-lab.yaml --verbose",
+      "talos:generate-manifests": "./omni/scripts/generate-manifests.sh"
+    }
+  }
+}

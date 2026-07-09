@@ -17,6 +17,11 @@ JUMP_HOST="${OMNI_LIBVIRT_IMAGE_SSH_TARGET:-}"
 JUMP_STAGE_DIR="${OMNI_JUMP_STAGE_DIR:-/tmp/omni-deploy-src}"
 RELAY_IP_PREFIXES="${OMNI_DEPLOY_RELAY_IP_PREFIXES:-192.168.122.}"
 BASE_SSH_OPTS="${OMNI_SSH_OPTS:--o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5}"
+REMOTE_ENV_PREFIX=""
+if [ -n "${OMNI_AUTH_ARGS:-}" ]; then
+  escaped_auth="$(printf '%q' "${OMNI_AUTH_ARGS}")"
+  REMOTE_ENV_PREFIX="OMNI_AUTH_ARGS=${escaped_auth} "
+fi
 
 SSH_IDENTITY_FILE="${OMNI_SSH_IDENTITY_FILE:-}"
 if [ -z "$SSH_IDENTITY_FILE" ] && [ -n "${OMNI_SSH_PUBLIC_KEY_PATH:-}" ]; then
@@ -28,6 +33,40 @@ fi
 if [ -n "$SSH_IDENTITY_FILE" ]; then
   BASE_SSH_OPTS="$BASE_SSH_OPTS -i $SSH_IDENTITY_FILE -o IdentitiesOnly=yes"
 fi
+
+TLS_MODE="${OMNI_TLS_MODE:-direct}"
+OMNI_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN:-omni.local}}"
+TLS_CACHE_DIR="${OMNI_TLS_CERT_LOCAL_DIR:-${ROOT_DIR}/.cache/tls}"
+OMNI_TLS_PUBLIC_CERT_FILE="${OMNI_TLS_PUBLIC_CERT_FILE:-${TLS_CACHE_DIR}/certificates/${OMNI_DOMAIN}.crt}"
+OMNI_TLS_PUBLIC_KEY_FILE="${OMNI_TLS_PUBLIC_KEY_FILE:-${TLS_CACHE_DIR}/certificates/${OMNI_DOMAIN}.key}"
+
+copy_tls_assets_direct() {
+  local target="$1"
+  local remote_dir="$2"
+  local remote_certs="${remote_dir}/generated/certs"
+  ssh $BASE_SSH_OPTS "$target" "mkdir -p '${remote_certs}'"
+
+  if [ "$TLS_MODE" != "caddy-sni" ]; then
+    return 0
+  fi
+
+  # Public cert is optional — only required if OMNI_PUBLIC_DOMAIN is set
+  if [ -n "${OMNI_PUBLIC_DOMAIN:-}" ]; then
+    if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
+      if [ -n "${OMNI_TLS_ACME_DNS_PROVIDER:-}" ] && [ -n "${OMNI_TLS_ACME_EMAIL:-}" ]; then
+        "${ROOT_DIR}/scripts/issue-cert.sh"
+      fi
+      if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
+        echo "Public cert/key files not found: $OMNI_TLS_PUBLIC_CERT_FILE $OMNI_TLS_PUBLIC_KEY_FILE" >&2
+        exit 1
+      fi
+    fi
+    scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_CERT_FILE" "${target}:${remote_certs}/public.crt"
+    scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_KEY_FILE" "${target}:${remote_certs}/public.key"
+  fi
+
+  ssh $BASE_SSH_OPTS "$target" "test -S /var/run/tailscale/tailscaled.sock"
+}
 
 if [ -z "$TARGET" ]; then
   libvirt_uri="${OMNI_LIBVIRT_URI:-}"
@@ -60,6 +99,10 @@ fi
 EXCLUDES=(
   --exclude '.git'
   --exclude '.terraform'
+  --exclude '.devbox'
+  --exclude '.specstory'
+  --exclude '.nvimlog'
+  --exclude 'data'
   --exclude 'terraform/libvirt/.terraform'
   --exclude 'terraform/libvirt/*.tfstate*'
   --exclude 'generated'
@@ -85,11 +128,31 @@ if [ "$needs_relay" = "1" ]; then
     "${EXCLUDES[@]}" \
     "${ROOT_DIR}/" "${JUMP_HOST}:${JUMP_STAGE_DIR}/"
 
-  ssh -A $BASE_SSH_OPTS "$JUMP_HOST" bash -s -- "$TARGET" "$REMOTE_DIR" "$JUMP_STAGE_DIR" <<'REMOTE'
+  if [ "$TLS_MODE" = "caddy-sni" ]; then
+    ssh $BASE_SSH_OPTS "$JUMP_HOST" "mkdir -p '${JUMP_STAGE_DIR}/generated/certs'"
+    if [ -n "${OMNI_PUBLIC_DOMAIN:-}" ]; then
+      if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
+        if [ -n "${OMNI_TLS_ACME_DNS_PROVIDER:-}" ] && [ -n "${OMNI_TLS_ACME_EMAIL:-}" ]; then
+          "${ROOT_DIR}/scripts/issue-cert.sh"
+        fi
+      fi
+      if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
+        echo "Public cert/key files not found: $OMNI_TLS_PUBLIC_CERT_FILE $OMNI_TLS_PUBLIC_KEY_FILE" >&2
+        exit 1
+      fi
+      scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_CERT_FILE" "${JUMP_HOST}:${JUMP_STAGE_DIR}/generated/certs/public.crt"
+      scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_KEY_FILE" "${JUMP_HOST}:${JUMP_STAGE_DIR}/generated/certs/public.key"
+    fi
+  fi
+
+ssh -A $BASE_SSH_OPTS "$JUMP_HOST" bash -s -- "$TARGET" "$REMOTE_DIR" "$JUMP_STAGE_DIR" "$REMOTE_ENV_PREFIX" "$TLS_MODE" "$OMNI_TS_DOMAIN" <<'REMOTE'
 set -euo pipefail
 TARGET="$1"
 REMOTE_DIR="$2"
 STAGE_DIR="$3"
+REMOTE_ENV_PREFIX="${4:-}"
+TLS_MODE="${5:-direct}"
+OMNI_TS_DOMAIN="${6:-omni.local}"
 SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
 
 for _ in $(seq 1 60); do
@@ -108,12 +171,20 @@ rsync -az --delete \
   -e "ssh $SSH_OPTS" \
   --exclude '.git' \
   --exclude '.terraform' \
+  --exclude '.devbox' \
+  --exclude '.specstory' \
+  --exclude '.nvimlog' \
+  --exclude 'data' \
   --exclude 'terraform/libvirt/.terraform' \
   --exclude 'terraform/libvirt/*.tfstate*' \
   --exclude 'generated' \
   "${STAGE_DIR}/" "${TARGET}:${REMOTE_DIR}/"
 
-ssh $SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ./scripts/render.sh && ./scripts/up.sh"
+if [ "$TLS_MODE" = "caddy-sni" ]; then
+  ssh $SSH_OPTS "$TARGET" "test -S /var/run/tailscale/tailscaled.sock"
+fi
+
+ssh $SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ${REMOTE_ENV_PREFIX}./scripts/render.sh && ${REMOTE_ENV_PREFIX}./scripts/up.sh"
 REMOTE
 
   exit 0
@@ -136,4 +207,6 @@ rsync -az --delete \
   "${EXCLUDES[@]}" \
   "${ROOT_DIR}/" "${TARGET}:${REMOTE_DIR}/"
 
-ssh $BASE_SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ./scripts/render.sh && ./scripts/up.sh"
+copy_tls_assets_direct "$TARGET" "$REMOTE_DIR"
+
+ssh $BASE_SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ${REMOTE_ENV_PREFIX}./scripts/render.sh && ${REMOTE_ENV_PREFIX}./scripts/up.sh"

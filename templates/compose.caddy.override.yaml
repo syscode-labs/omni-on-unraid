@@ -1,0 +1,16 @@
+services:
+  omni:
+    restart: unless-stopped
+    volumes:
+      - ${SECONDARY_STORAGE_PATH}:/_out/secondary-storage
+
+  caddy:
+    profiles: ["caddy-sni"]
+    image: caddy:2.9.1
+    container_name: omni-caddy
+    network_mode: "host"
+    restart: unless-stopped
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/opt/certs:ro
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock

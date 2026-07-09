@@ -1,0 +1,26 @@
+kind: Cluster
+name: unraid-lab
+kubernetes:
+  version: v1.34.5
+talos:
+  version: v1.12.4
+features:
+  diskEncryption: false
+patches:
+  - file: omni/patches/cni-none.yaml
+  - file: omni/patches/disable-kube-proxy.yaml
+  - file: omni/patches/inline-manifests.yaml
+---
+kind: ControlPlane
+machineClass:
+  name: unraid-cp
+  size: 3
+patches:
+  - file: omni/patches/allow-scheduling.yaml
+# Uncomment when worker capacity is wanted.
+# ---
+# kind: Workers
+# name: worker
+# machineClass:
+#   name: unraid-worker
+#   size: 1

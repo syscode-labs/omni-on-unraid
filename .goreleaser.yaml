@@ -1,0 +1,75 @@
+version: 2
+
+project_name: omni-on-unraid
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: omni-on-unraid
+    main: ./cmd/omni-tui
+    binary: omni-on-unraid
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: omni-on-unraid
+    ids:
+      - omni-on-unraid
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+release:
+  github:
+    owner: syscode-labs
+    name: omni-on-unraid
+  draft: false
+  prerelease: auto
+  mode: replace
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+homebrew_casks:
+  - name: omni-on-unraid
+    ids:
+      - omni-on-unraid
+    binaries:
+      - omni-on-unraid
+    repository:
+      owner: syscode-labs
+      name: homebrew-public
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/syscode-labs/omni-on-unraid"
+    description: "Operator TUI for Omni-on-Unraid"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/omni-on-unraid"]
+          end

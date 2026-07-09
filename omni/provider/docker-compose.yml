@@ -1,0 +1,19 @@
+name: omni-libvirt-provider
+
+services:
+  omni-infra-provider-libvirt:
+    image: ghcr.io/siderolabs/omni-infra-provider-libvirt:v0.1.0
+    container_name: omni-infra-provider-libvirt
+    restart: unless-stopped
+    volumes:
+      - ../../generated/provider/libvirt-config.yaml:/config.yaml:ro
+      - ${OMNI_PROVIDER_SSH_KEY_FILE:-/dev/null}:/.ssh/id_rsa:ro
+    environment:
+      USER: omni
+      OMNI_ENDPOINT: "${OMNI_ENDPOINT}"
+      OMNI_SERVICE_ACCOUNT_KEY: "${OMNI_SERVICE_ACCOUNT_KEY}"
+    command:
+      - --omni-api-endpoint=${OMNI_ENDPOINT}
+      - --omni-service-account-key=${OMNI_SERVICE_ACCOUNT_KEY}
+      - --id=${OMNI_PROVIDER_ID:-libvirt}
+      - --config-file=/config.yaml

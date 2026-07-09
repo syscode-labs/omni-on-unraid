@@ -1,4 +1,9 @@
 [tools]
+terraform = "1.9.8"
+go = "1.25.8"
+omnictl = "1.5.8"
+kubectl = "1.34.2"
+kustomize = "5.7.1"
 
 [tasks."infra:prepare-image"]
 description = "Download/sync Ubuntu cloud image to libvirt host path"
@@ -46,6 +51,10 @@ echo "Prerequisites look good"
 description = "Render pinned Omni deployment assets"
 run = "./scripts/render.sh"
 
+[tasks."omni:issue-cert"]
+description = "Issue/renew public TLS cert locally via ACME DNS-01"
+run = "./scripts/issue-cert.sh"
+
 [tasks."omni:up"]
 description = "Start Omni stack"
 run = "./scripts/up.sh"
@@ -73,8 +82,79 @@ fi
 description = "Sync repo to Omni VM and apply Omni there"
 run = "./scripts/deploy-remote.sh"
 
+[tasks."omni:tools:shell"]
+description = "Open mise-managed shell with omnictl, kubectl, kustomize, and Go"
+run = "mise shell"
+
+[tasks."release:check"]
+description = "Validate GoReleaser release configuration"
+run = "goreleaser check"
+
+[tasks."release:snapshot"]
+description = "Build local GoReleaser snapshot artifacts"
+run = "goreleaser release --snapshot --clean"
+
+[tasks."omni:provider:apply"]
+description = "Start Omni libvirt infrastructure provider via Docker Compose"
+run = '''
+omnictl apply -f omni/provider/infra-provider.yaml
+go run ./cmd/omni-render provider-config --output generated/provider/libvirt-config.yaml
+docker compose -f omni/provider/docker-compose.yml --env-file .env up -d
+'''
+
+[tasks."omni:provider:status"]
+description = "Show Omni libvirt infrastructure provider status"
+run = "docker compose -f omni/provider/docker-compose.yml --env-file .env ps"
+
+[tasks."omni:provider:logs"]
+description = "Tail Omni libvirt infrastructure provider logs"
+run = "docker compose -f omni/provider/docker-compose.yml --env-file .env logs -f"
+
+[tasks."omni:provider:down"]
+description = "Stop Omni libvirt infrastructure provider"
+run = "docker compose -f omni/provider/docker-compose.yml --env-file .env down"
+
+[tasks."omni:machineclass:render"]
+description = "Render Omni dynamic libvirt MachineClass"
+run = "go run ./cmd/omni-render machineclass --output generated/machineclass.yaml"
+
+[tasks."omni:machineclass:apply"]
+description = "Apply UI-selectable Omni libvirt MachineClasses with omnictl"
+run = '''
+omnictl apply -f omni/machine-classes/control-plane.yaml
+omnictl apply -f omni/machine-classes/worker.yaml
+'''
+
+[tasks."omni:cluster:render"]
+description = "Render Omni cluster template using dynamic machine allocation"
+run = "go run ./cmd/omni-render cluster --output generated/cluster.yaml"
+
+[tasks."omni:cluster:apply"]
+description = "Validate, sync, and wait on Omni cluster template"
+run = '''
+omnictl cluster template validate -f omni/cluster-templates/unraid-lab.yaml
+omnictl cluster template sync -f omni/cluster-templates/unraid-lab.yaml --verbose
+omnictl cluster template status -f omni/cluster-templates/unraid-lab.yaml
+'''
+
+[tasks."omni:cluster:status"]
+description = "Show Omni cluster template status"
+run = "omnictl cluster template status -f omni/cluster-templates/unraid-lab.yaml"
+
+[tasks."omni:talos:generate-manifests"]
+description = "Generate Cilium and Argo CD inline manifests for the Talos cluster template"
+run = "./omni/scripts/generate-manifests.sh"
+
+[tasks."auth:pocketid:render-oidc-sql"]
+description = "Render Pocket-ID OIDC client SQL required by Omni"
+run = "go run ./cmd/omni-render pocketid-oidc-sql --output generated/pocket-id-omni-oidc-client.sql"
+
+[tasks."omni:lab:provision"]
+description = "Provision 3-node Talos lab cluster through Omni and its libvirt provider"
+depends = ["omni:provider:apply", "omni:provider:status", "omni:machineclass:apply", "omni:cluster:apply"]
+
 [tasks."stack:provision"]
-description = "Provision VM infra then deploy Omni remotely"
+description = "Bootstrap Omni control-plane VM on Unraid; not Talos cluster provisioning"
 depends = ["infra:prepare-image", "infra:apply", "omni:deploy-remote"]
 
 [tasks."ctr:shell"]

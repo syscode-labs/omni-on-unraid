@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omni-infra-provider-libvirt-config
+  namespace: omni-infra-provider
+data:
+  config.yaml: |
+    libvirt:
+      uri: qemu+libssh://omniops@libvirt-host.example.internal/system?known_hosts_verify=ignore

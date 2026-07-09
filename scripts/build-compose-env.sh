@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 OUT_DIR="${ROOT_DIR}/generated"
 OUT_ENV="${OUT_DIR}/compose.env"
+CADDY_DIR="${OUT_DIR}/caddy"
+CERTS_DIR="${OUT_DIR}/certs"
 
 if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1090,SC1091
@@ -27,13 +29,14 @@ if [ -z "$ABS_DATA_DIR" ]; then
 fi
 
 ETCD_DIR="${ABS_DATA_DIR}/etcd"
+SECONDARY_STORAGE_DIR="${ABS_DATA_DIR}/secondary-storage"
 TLS_DIR="${ABS_DATA_DIR}/tls"
 ENC_KEY="${ABS_DATA_DIR}/omni.asc"
 ACCOUNT_FILE="${ABS_DATA_DIR}/omni-account-uuid"
 CERT_FILE="${TLS_DIR}/tls.crt"
 KEY_FILE="${TLS_DIR}/tls.key"
 
-mkdir -p "$OUT_DIR" "$ETCD_DIR" "$TLS_DIR"
+mkdir -p "$OUT_DIR" "$ETCD_DIR" "$SECONDARY_STORAGE_DIR" "$TLS_DIR" "$CADDY_DIR" "$CERTS_DIR"
 
 if [ ! -f "$ENC_KEY" ]; then
   openssl rand -base64 32 > "$ENC_KEY"
@@ -59,7 +62,15 @@ fi
 OMNI_IMG_TAG="${OMNI_IMG_TAG:-${OMNI_VERSION}}"
 NAME="${OMNI_NAME:-omni}"
 EVENT_SINK_PORT="${OMNI_EVENT_SINK_PORT:-8091}"
-BIND_ADDR="${OMNI_BIND_ADDR:-0.0.0.0:443}"
+TLS_MODE="${OMNI_TLS_MODE:-direct}"
+if [ "$TLS_MODE" != "caddy-sni" ]; then
+  TLS_MODE="direct"
+fi
+if [ "$TLS_MODE" = "caddy-sni" ]; then
+  BIND_ADDR="${OMNI_BIND_ADDR:-127.0.0.1:8443}"
+else
+  BIND_ADDR="${OMNI_BIND_ADDR:-0.0.0.0:443}"
+fi
 MACHINE_API_BIND_ADDR="${OMNI_MACHINE_API_BIND_ADDR:-0.0.0.0:8090}"
 K8S_PROXY_BIND_ADDR="${OMNI_K8S_PROXY_BIND_ADDR:-0.0.0.0:8100}"
 ADVERTISED_API_URL="${OMNI_ADVERTISED_API_URL:-https://${OMNI_DOMAIN}}"
@@ -72,12 +83,16 @@ OMNI_STORAGE_KIND="${OMNI_STORAGE_KIND:-boltdb}"
 OMNI_STORAGE_SQLITE_PATH="${OMNI_STORAGE_SQLITE_PATH:-/_out/omni.sqlite}"
 OMNI_EXTRA_ARGS_DEFAULT="--storage-kind=${OMNI_STORAGE_KIND} --sqlite-storage-path=${OMNI_STORAGE_SQLITE_PATH}"
 OMNI_EXTRA_ARGS="${OMNI_EXTRA_ARGS:-$OMNI_EXTRA_ARGS_DEFAULT}"
+CADDY_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN}}"
+# Only set public domain if explicitly configured — avoids generating a Caddy block with no cert
+CADDY_PUBLIC_DOMAIN="${OMNI_PUBLIC_DOMAIN:-}"
+# Caddy runs in a container; public certs are mounted at /opt/certs (not the host path).
+# Caddy obtains *.ts.net certs from host tailscaled via the mounted tailscaled socket.
+CADDY_CERTS_MOUNT="/opt/certs"
+CADDY_PUBLIC_CERT_PATH="${OMNI_PUBLIC_CERT_PATH:-${CADDY_CERTS_MOUNT}/public.crt}"
+CADDY_PUBLIC_KEY_PATH="${OMNI_PUBLIC_KEY_PATH:-${CADDY_CERTS_MOUNT}/public.key}"
 
-AUTH_TRIMMED="$(echo "${AUTH}" | tr -d '[:space:]')"
-if [ -z "$AUTH_TRIMMED" ]; then
-  echo "OMNI_AUTH_ARGS is required. Configure an auth provider (Auth0/OIDC/SAML) in .env." >&2
-  exit 1
-fi
+AUTH_COMBINED="${AUTH} ${OMNI_EXTRA_ARGS}"
 
 cat > "$OUT_ENV" <<EOV
 OMNI_IMG_TAG=${OMNI_IMG_TAG}
@@ -87,6 +102,7 @@ EVENT_SINK_PORT=${EVENT_SINK_PORT}
 TLS_CERT=${CERT_FILE}
 TLS_KEY=${KEY_FILE}
 ETCD_VOLUME_PATH=${ETCD_DIR}
+SECONDARY_STORAGE_PATH=${SECONDARY_STORAGE_DIR}
 ETCD_ENCRYPTION_KEY=${ENC_KEY}
 BIND_ADDR=${BIND_ADDR}
 MACHINE_API_BIND_ADDR=${MACHINE_API_BIND_ADDR}
@@ -96,7 +112,14 @@ ADVERTISED_K8S_PROXY_URL=${ADVERTISED_K8S_PROXY_URL}
 SIDEROLINK_ADVERTISED_API_URL=${SIDEROLINK_ADVERTISED_API_URL}
 SIDEROLINK_WIREGUARD_ADVERTISED_ADDR=${SIDEROLINK_WIREGUARD_ADVERTISED_ADDR}
 INITIAL_USER_EMAILS=${INITIAL_USER_EMAILS}
-AUTH=${AUTH} ${OMNI_EXTRA_ARGS}
+TLS_MODE=${TLS_MODE}
+CADDY_TS_DOMAIN=${CADDY_TS_DOMAIN}
+CADDY_PUBLIC_DOMAIN=${CADDY_PUBLIC_DOMAIN}
+CADDY_PUBLIC_CERT_PATH=${CADDY_PUBLIC_CERT_PATH}
+CADDY_PUBLIC_KEY_PATH=${CADDY_PUBLIC_KEY_PATH}
 EOV
+
+# AUTH may contain spaces and special chars — write it quoted so `source compose.env` is safe
+printf "AUTH='%s'\n" "${AUTH_COMBINED}" >> "$OUT_ENV"
 
 echo "Wrote ${OUT_ENV}"

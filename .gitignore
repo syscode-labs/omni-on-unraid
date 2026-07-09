@@ -1,8 +1,16 @@
 .env
+.env.*
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfvars
 crash.log
 terraform/libvirt/.terraform/
 generated/
+dist/
 .cache/
+.tools/
+data/
+.devbox/
+.specstory/
+.nvimlog

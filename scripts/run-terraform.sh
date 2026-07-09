@@ -62,11 +62,21 @@ if [ -z "${TF_VAR_tailscale_hostname:-}" ] && [ -n "${OMNI_TAILSCALE_HOSTNAME:-}
   export TF_VAR_tailscale_hostname="$OMNI_TAILSCALE_HOSTNAME"
 fi
 
+if [ -z "${TF_VAR_pool_name:-}" ]; then
+  if [ -n "${OMNI_LIBVIRT_POOL:-}" ]; then
+    export TF_VAR_pool_name="$OMNI_LIBVIRT_POOL"
+  fi
+fi
+
+if [ -z "${TF_VAR_base_image_pool:-}" ]; then
+  if [ -n "${OMNI_LIBVIRT_BASE_IMAGE_POOL:-}" ]; then
+    export TF_VAR_base_image_pool="$OMNI_LIBVIRT_BASE_IMAGE_POOL"
+  fi
+fi
+
 if [ -z "${TF_VAR_network_bridge:-}" ]; then
   if [ -n "${OMNI_LIBVIRT_BRIDGE:-}" ]; then
     export TF_VAR_network_bridge="$OMNI_LIBVIRT_BRIDGE"
-  elif [ -n "${OMNI_LIBVIRT_NETWORK:-}" ]; then
-    export TF_VAR_network_bridge="$OMNI_LIBVIRT_NETWORK"
   fi
 fi
 
