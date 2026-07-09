@@ -67,6 +67,9 @@ Recommended setup:
    back to `GITHUB_TOKEN`.
 3. Enable "Allow GitHub Actions to create and approve pull requests" in repo
    Actions settings if release PR creation is blocked.
+4. Replace long-lived PAT secrets with a Syscode GitHub App. Store the app id
+   and private key as Actions secrets, mint short-lived installation tokens in
+   CI, and pass those tokens to Release Please and GoReleaser.
 
 ## Manual Release Fallback
 
