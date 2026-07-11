@@ -9,10 +9,11 @@ ARGOCD_APP_PATH="${ARGOCD_APP_PATH:-bootstrap}"
 ARGOCD_APP_TARGET_REVISION="${ARGOCD_APP_TARGET_REVISION:-HEAD}"
 
 # Argo topology selector.
-#   in-cluster : bootstrap Argo CD + root App-of-Apps inside this cluster (default).
 #   hub        : omit in-cluster Argo — a central hub Argo (on the Omni VM k8s) manages
-#                this cluster as a spoke. Cilium is always in-cluster (it is the CNI).
-ARGO_MODE="${ARGO_MODE:-in-cluster}"
+#                this cluster as a spoke (default for this homelab).
+#   in-cluster : bootstrap Argo CD + root App-of-Apps inside this cluster.
+#   Cilium is always in-cluster (it is the CNI).
+ARGO_MODE="${ARGO_MODE:-hub}"
 case "$ARGO_MODE" in
   in-cluster|hub) ;;
   *) echo "ARGO_MODE must be 'in-cluster' or 'hub', got '${ARGO_MODE}'" >&2; exit 1 ;;
@@ -49,8 +50,8 @@ cat > "${PATCH_FILE}" <<EOF
 # Talos inline manifests applied during cluster bootstrap by the first control plane.
 #
 # Regenerate after Cilium or Argo CD version bumps:
-#   mise run omni:talos:generate-manifests                    # in-cluster Argo (default)
-#   ARGO_MODE=hub mise run omni:talos:generate-manifests      # central hub Argo, no in-cluster Argo
+#   mise run omni:talos:generate-manifests                         # central hub Argo (default)
+#   ARGO_MODE=in-cluster mise run omni:talos:generate-manifests    # in-cluster Argo + App-of-Apps
 #
 # ARGO_MODE: ${ARGO_MODE}
 # Cilium: ${CILIUM_VERSION}; kubeProxyReplacement=true; KubePrism localhost:7445
