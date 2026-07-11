@@ -94,11 +94,44 @@ ${ARGOCD_CONTENT}
               selfHeal: true
 EOF
 else
-cat >> "${PATCH_FILE}" <<EOF
+cat >> "${PATCH_FILE}" <<'EOF'
 
-    # ARGO_MODE=hub — in-cluster Argo intentionally omitted.
-    # A central hub Argo (on the Omni VM k8s) manages this cluster as a spoke; register it
-    # there with an Argo cluster secret pointing at this cluster's API over Tailscale.
+    # ARGO_MODE=hub — no in-cluster Argo. A central hub Argo (on the Omni VM k8s) manages
+    # this cluster as a spoke. This block ships the ServiceAccount the hub authenticates as,
+    # so the token exists from first boot. Registration (read token → sops → commit) is the
+    # single manual step, documented once in:
+    #   syscode-ai-internal-plans/projects/imp/docs/plans/2026-07-11-argo-hub-spoke-registration-runbook.md
+    - name: argocd-manager
+      contents: |
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: argocd-manager
+          namespace: kube-system
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: argocd-manager
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: cluster-admin
+        subjects:
+          - kind: ServiceAccount
+            name: argocd-manager
+            namespace: kube-system
+        ---
+        # Non-expiring legacy SA token (auto-token Secrets removed in k8s 1.24). Deliberate:
+        # a bound short-lived token can't be pre-committed for GitOps registration.
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: argocd-manager-token
+          namespace: kube-system
+          annotations:
+            kubernetes.io/service-account.name: argocd-manager
+        type: kubernetes.io/service-account-token
 EOF
 fi
 
