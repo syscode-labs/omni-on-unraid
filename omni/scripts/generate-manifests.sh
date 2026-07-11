@@ -8,6 +8,16 @@ ARGOCD_APP_REPO_URL="${ARGOCD_APP_REPO_URL:-https://github.com/syscode-labs/oci-
 ARGOCD_APP_PATH="${ARGOCD_APP_PATH:-bootstrap}"
 ARGOCD_APP_TARGET_REVISION="${ARGOCD_APP_TARGET_REVISION:-HEAD}"
 
+# Argo topology selector.
+#   in-cluster : bootstrap Argo CD + root App-of-Apps inside this cluster (default).
+#   hub        : omit in-cluster Argo — a central hub Argo (on the Omni VM k8s) manages
+#                this cluster as a spoke. Cilium is always in-cluster (it is the CNI).
+ARGO_MODE="${ARGO_MODE:-in-cluster}"
+case "$ARGO_MODE" in
+  in-cluster|hub) ;;
+  *) echo "ARGO_MODE must be 'in-cluster' or 'hub', got '${ARGO_MODE}'" >&2; exit 1 ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_FILE="${SCRIPT_DIR}/../patches/inline-manifests.yaml"
 TMPDIR="$(mktemp -d)"
@@ -27,20 +37,23 @@ helm template cilium cilium/cilium \
   --set hubble.ui.enabled=true \
   > "${TMPDIR}/cilium.yaml"
 
-curl -sL "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml" \
-  > "${TMPDIR}/argocd.yaml"
+if [ "$ARGO_MODE" = "in-cluster" ]; then
+  curl -sL "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml" \
+    > "${TMPDIR}/argocd.yaml"
+  ARGOCD_CONTENT="$(sed 's/^/        /' "${TMPDIR}/argocd.yaml")"
+fi
 
 CILIUM_CONTENT="$(sed 's/^/        /' "${TMPDIR}/cilium.yaml")"
-ARGOCD_CONTENT="$(sed 's/^/        /' "${TMPDIR}/argocd.yaml")"
 
 cat > "${PATCH_FILE}" <<EOF
 # Talos inline manifests applied during cluster bootstrap by the first control plane.
 #
 # Regenerate after Cilium or Argo CD version bumps:
-#   mise run omni:talos:generate-manifests
+#   mise run omni:talos:generate-manifests                    # in-cluster Argo (default)
+#   ARGO_MODE=hub mise run omni:talos:generate-manifests      # central hub Argo, no in-cluster Argo
 #
+# ARGO_MODE: ${ARGO_MODE}
 # Cilium: ${CILIUM_VERSION}; kubeProxyReplacement=true; KubePrism localhost:7445
-# Argo CD: ${ARGOCD_VERSION}; raw install manifest plus root App-of-Apps
 
 cluster:
   inlineManifests:
@@ -48,6 +61,10 @@ cluster:
       contents: |
         # cilium ${CILIUM_VERSION}; generated $(date -u +%Y-%m-%d)
 ${CILIUM_CONTENT}
+EOF
+
+if [ "$ARGO_MODE" = "in-cluster" ]; then
+cat >> "${PATCH_FILE}" <<EOF
 
     - name: argocd
       contents: |
@@ -75,5 +92,13 @@ ${ARGOCD_CONTENT}
               prune: true
               selfHeal: true
 EOF
+else
+cat >> "${PATCH_FILE}" <<EOF
 
-echo "Wrote ${PATCH_FILE}"
+    # ARGO_MODE=hub — in-cluster Argo intentionally omitted.
+    # A central hub Argo (on the Omni VM k8s) manages this cluster as a spoke; register it
+    # there with an Argo cluster secret pointing at this cluster's API over Tailscale.
+EOF
+fi
+
+echo "Wrote ${PATCH_FILE} (ARGO_MODE=${ARGO_MODE})"
