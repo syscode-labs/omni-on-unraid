@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Generate inline manifest content for omni/patches/inline-manifests.yaml.
+# Generate Talos inline manifests for the Omni cluster patches.
+#
+# Emits two files:
+#   omni/patches/inline-manifests.yaml             generic clusters — Cilium CNI only
+#   omni/patches/inline-manifests-management.yaml  mgmt cluster — Cilium + Argo CD + root App
 set -euo pipefail
 
 CILIUM_VERSION="${CILIUM_VERSION:-1.17.2}"
@@ -9,7 +13,8 @@ ARGOCD_APP_PATH="${ARGOCD_APP_PATH:-bootstrap}"
 ARGOCD_APP_TARGET_REVISION="${ARGOCD_APP_TARGET_REVISION:-HEAD}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PATCH_FILE="${SCRIPT_DIR}/../patches/inline-manifests.yaml"
+GENERIC_PATCH_FILE="${SCRIPT_DIR}/../patches/inline-manifests.yaml"
+MGMT_PATCH_FILE="${SCRIPT_DIR}/../patches/inline-manifests-management.yaml"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -33,14 +38,33 @@ curl -sL "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/m
 CILIUM_CONTENT="$(sed 's/^/        /' "${TMPDIR}/cilium.yaml")"
 ARGOCD_CONTENT="$(sed 's/^/        /' "${TMPDIR}/argocd.yaml")"
 
-cat > "${PATCH_FILE}" <<EOF
-# Talos inline manifests applied during cluster bootstrap by the first control plane.
+# --- generic patch: Cilium CNI only ---
+cat > "${GENERIC_PATCH_FILE}" <<EOF
+# Talos inline manifests for GENERIC clusters — Cilium CNI only.
 #
-# Regenerate after Cilium or Argo CD version bumps:
+# Regenerate after a Cilium version bump:
 #   mise run omni:talos:generate-manifests
 #
 # Cilium: ${CILIUM_VERSION}; kubeProxyReplacement=true; KubePrism localhost:7445
-# Argo CD: ${ARGOCD_VERSION}; raw install manifest plus root App-of-Apps
+
+cluster:
+  inlineManifests:
+    - name: cilium
+      contents: |
+        # cilium ${CILIUM_VERSION}; generated $(date -u +%Y-%m-%d)
+${CILIUM_CONTENT}
+EOF
+
+# --- mgmt patch: Cilium + Argo CD + root App-of-Apps ---
+cat > "${MGMT_PATCH_FILE}" <<EOF
+# Talos inline manifests for the homelab-management (mgmt) cluster.
+# Cilium CNI + Argo CD + root App-of-Apps (GitOps).
+#
+# Regenerate after a Cilium or Argo CD version bump:
+#   mise run omni:talos:generate-manifests
+#
+# Cilium: ${CILIUM_VERSION}; kubeProxyReplacement=true; KubePrism localhost:7445
+# Argo CD: ${ARGOCD_VERSION}; raw install manifest plus root App-of-Apps -> ${ARGOCD_APP_REPO_URL}
 
 cluster:
   inlineManifests:
@@ -76,4 +100,5 @@ ${ARGOCD_CONTENT}
               selfHeal: true
 EOF
 
-echo "Wrote ${PATCH_FILE}"
+echo "Wrote ${GENERIC_PATCH_FILE}"
+echo "Wrote ${MGMT_PATCH_FILE}"

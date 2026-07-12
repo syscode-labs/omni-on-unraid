@@ -1,0 +1,20 @@
+kind: Cluster
+name: homelab-management
+kubernetes:
+  version: v1.34.5
+talos:
+  version: v1.12.4
+features:
+  diskEncryption: false
+patches:
+  - file: omni/patches/cni-none.yaml
+  - file: omni/patches/disable-kube-proxy.yaml
+  - file: omni/patches/inline-manifests-management.yaml
+---
+# Single schedulable control-plane node — mgmt-only cluster (Argo/GitOps).
+kind: ControlPlane
+machineClass:
+  name: unraid-mgmt
+  size: 1
+patches:
+  - file: omni/patches/allow-scheduling.yaml
