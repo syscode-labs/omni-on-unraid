@@ -4,7 +4,7 @@ OMNI_TUI_BIN ?= omni-on-unraid
 GO ?= go
 GO_ENV ?= env -u GOROOT GOCACHE=$(CURDIR)/.cache/go-build
 
-.PHONY: help build install uninstall tui release-check snapshot infra-prepare-image infra-check infra-init infra-plan infra-apply infra-destroy doctor render up down backup restore deploy-remote omni-tools-shell omni-provider-apply omni-provider-status omni-provider-logs omni-provider-down omni-machineclass-apply omni-cluster-apply omni-cluster-status omni-lab-provision stack-provision provider provider-status provider-logs provider-down mc cluster status lab tools
+.PHONY: help build install uninstall tui release-check snapshot infra-prepare-image infra-check infra-init infra-plan infra-apply infra-destroy doctor health render up down backup restore deploy-remote omni-tools-shell omni-provider-apply omni-provider-status omni-provider-logs omni-provider-down omni-machineclass-apply omni-cluster-apply omni-cluster-status omni-lab-provision stack-provision provider provider-status provider-logs provider-down mc cluster status lab tools
 
 help:
 	@printf '%s\n' \
@@ -27,6 +27,7 @@ help:
 		'  make lab             Run provider + machine classes + cluster' \
 		'' \
 		'Omni service VM targets:' \
+		'  make health          Run compose/TLS deployment health checks' \
 		'  make deploy-remote   Sync/apply Omni service VM deployment' \
 		'  make stack-provision Bootstrap Omni service VM on Unraid'
 
@@ -71,6 +72,9 @@ infra-destroy:
 
 doctor:
 	mise run omni:doctor
+
+health:
+	mise run omni:health
 
 render:
 	mise run omni:render

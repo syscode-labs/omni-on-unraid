@@ -47,6 +47,37 @@ fi
 echo "Prerequisites look good"
 '''
 
+[tasks."omni:health:compose-env"]
+description = "Verify generated Omni compose env uses persistent state and expected cert wiring"
+run = "go run ./cmd/omni-health compose-env --path generated/compose.env"
+
+[tasks."omni:health:tls"]
+description = "Verify Omni web TLS and no-SNI machine API TLS"
+run = '''
+set -euo pipefail
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+domain="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN:-}}"
+if [ -z "$domain" ]; then
+  echo "Set OMNI_DOMAIN or OMNI_TS_DOMAIN in .env" >&2
+  exit 1
+fi
+machine_args=()
+if [ -n "${OMNI_MACHINE_API_SMOKE_ADDR:-}" ]; then
+  machine_args=(--machine-api-addr "$OMNI_MACHINE_API_SMOKE_ADDR")
+elif [ -n "${OMNI_SIDEROLINK_API_URL:-}" ]; then
+  machine_args=(--machine-api-url "$OMNI_SIDEROLINK_API_URL")
+fi
+go run ./cmd/omni-health tls --domain "$domain" "${machine_args[@]}"
+'''
+
+[tasks."omni:health"]
+description = "Run local Omni deployment health checks"
+depends = ["omni:health:compose-env", "omni:health:tls"]
+
 [tasks."omni:render"]
 description = "Render pinned Omni deployment assets"
 run = "./scripts/render.sh"
@@ -131,15 +162,17 @@ run = "go run ./cmd/omni-render cluster --output generated/cluster.yaml"
 
 [tasks."omni:cluster:apply"]
 description = "Validate, sync, and wait on Omni cluster template"
+depends = ["omni:cluster:render"]
 run = '''
-omnictl cluster template validate -f omni/cluster-templates/unraid-lab.yaml
-omnictl cluster template sync -f omni/cluster-templates/unraid-lab.yaml --verbose
-omnictl cluster template status -f omni/cluster-templates/unraid-lab.yaml
+omnictl cluster template validate -f generated/cluster.yaml
+omnictl cluster template sync -f generated/cluster.yaml --verbose
+omnictl cluster template status -f generated/cluster.yaml
 '''
 
 [tasks."omni:cluster:status"]
 description = "Show Omni cluster template status"
-run = "omnictl cluster template status -f omni/cluster-templates/unraid-lab.yaml"
+depends = ["omni:cluster:render"]
+run = "omnictl cluster template status -f generated/cluster.yaml"
 
 [tasks."omni:talos:generate-manifests"]
 description = "Generate Cilium and Argo CD inline manifests for the Talos cluster template"
