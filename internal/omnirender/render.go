@@ -31,6 +31,7 @@ type Config struct {
 	ProviderLibvirtURI     string
 	SystemExtensions       []string
 	NodesTailscaleAuthKey  string
+	InstallImage           string
 }
 
 func (c Config) withDefaults() Config {
@@ -50,7 +51,7 @@ func (c Config) withDefaults() Config {
 		c.KubernetesVersion = "v1.34.5"
 	}
 	if c.TalosVersion == "" {
-		c.TalosVersion = "v1.12.4"
+		c.TalosVersion = "v1.12.6"
 	}
 	if c.Cores == 0 {
 		c.Cores = 4
@@ -69,6 +70,11 @@ func (c Config) withDefaults() Config {
 	}
 	if len(c.SystemExtensions) == 0 {
 		c.SystemExtensions = []string{"siderolabs/tailscale"}
+	}
+	if c.InstallImage == "" {
+		// Runtime installer (firecracker + tailscale + official exts). Tag tracks the
+		// Talos version so the two never drift.
+		c.InstallImage = "ghcr.io/syscode-labs/talos-images/installer:" + c.TalosVersion
 	}
 	if c.NodesTailscaleAuthKey == "" {
 		c.NodesTailscaleAuthKey = os.Getenv("NODES_TAILSCALE_AUTHKEY")
@@ -300,6 +306,7 @@ func MachineClassDocuments(config Config) []map[string]any {
 				"id":        config.MachineClass,
 			},
 			"spec": map[string]any{
+				"installImage": config.InstallImage,
 				"autoprovision": map[string]any{
 					"providerid":   config.ProviderID,
 					"providerdata": providerData(config),
@@ -392,14 +399,20 @@ func WriteYAML(writer io.Writer, docs []map[string]any) error {
 }
 
 func providerData(config Config) string {
+	var extensions string
+	for _, ext := range config.SystemExtensions {
+		extensions += fmt.Sprintf("  - %s\n", ext)
+	}
+
 	return fmt.Sprintf(`cores: %d
 memory: %d
 disk_size: %d
 storage_pool: "%s"
-network_interfaces:
+extensions:
+%snetwork_interfaces:
   - driver: "virtio"
     network_name: "%s"
-`, config.Cores, config.MemoryMB, config.DiskGB, config.StoragePool, config.NetworkName)
+`, config.Cores, config.MemoryMB, config.DiskGB, config.StoragePool, extensions, config.NetworkName)
 }
 
 func writeMap(writer io.Writer, value map[string]any, indent int) error {

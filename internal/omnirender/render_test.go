@@ -20,6 +20,9 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 	}
 
 	spec := docs[0]["spec"].(map[string]any)
+	if got := spec["installImage"]; got != "ghcr.io/syscode-labs/talos-images/installer:v1.12.6" {
+		t.Fatalf("installImage = %v, want installer:v1.12.6", got)
+	}
 	autoprovision := spec["autoprovision"].(map[string]any)
 	if got := autoprovision["providerid"]; got != "libvirt" {
 		t.Fatalf("providerid = %v, want libvirt", got)
@@ -28,6 +31,8 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 	providerData := autoprovision["providerdata"].(string)
 	for _, want := range []string{
 		"storage_pool: \"omni-domains\"",
+		"extensions:",
+		"  - siderolabs/tailscale",
 		"network_interfaces:",
 		"network_name: \"default\"",
 	} {

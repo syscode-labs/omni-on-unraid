@@ -1,7 +1,7 @@
 metadata:
   namespace: default
   type: MachineClasses.omni.sidero.dev
-  id: unraid-mgmt
+  id: unraid-tiny
 
 spec:
   # Runtime image the node installs to disk after joining: firecracker + tailscale
@@ -10,9 +10,9 @@ spec:
   autoprovision:
     providerid: libvirt
     providerdata: |
-      cores: 2
-      memory: 4096
-      disk_size: 40
+      cores: 1
+      memory: 2048
+      disk_size: 20
       storage_pool: "omni-domains"
       # Boot/maintenance schematic extensions (official only) so the node reaches
       # tailnet-only Omni to join. Requires the tailscale fork of the libvirt provider.

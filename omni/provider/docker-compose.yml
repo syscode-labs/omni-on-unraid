@@ -2,7 +2,11 @@ name: omni-libvirt-provider
 
 services:
   omni-infra-provider-libvirt:
-    image: ghcr.io/siderolabs/omni-infra-provider-libvirt:v0.1.0
+    # Tailscale fork: injects a tailscale ExtensionServiceConfig into node
+    # first-boot user-data (via NODES_TAILSCALE_AUTHKEY) so nodes reach the
+    # tailnet-only Omni SideroLink endpoint and join. See
+    # github.com/syscode-labs/omni-infra-provider-libvirt-tailscale
+    image: ghcr.io/syscode-labs/omni-infra-provider-libvirt:ca322bc
     container_name: omni-infra-provider-libvirt
     restart: unless-stopped
     volumes:
@@ -12,6 +16,7 @@ services:
       USER: omni
       OMNI_ENDPOINT: "${OMNI_ENDPOINT}"
       OMNI_SERVICE_ACCOUNT_KEY: "${OMNI_SERVICE_ACCOUNT_KEY}"
+      NODES_TAILSCALE_AUTHKEY: "${NODES_TAILSCALE_AUTHKEY}"
     command:
       - --omni-api-endpoint=${OMNI_ENDPOINT}
       - --omni-service-account-key=${OMNI_SERVICE_ACCOUNT_KEY}
