@@ -51,7 +51,7 @@ func (c Config) withDefaults() Config {
 		c.KubernetesVersion = "v1.34.5"
 	}
 	if c.TalosVersion == "" {
-		c.TalosVersion = "v1.12.6"
+		c.TalosVersion = "v1.13.6"
 	}
 	if c.Cores == 0 {
 		c.Cores = 4

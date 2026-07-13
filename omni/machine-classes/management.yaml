@@ -6,7 +6,7 @@ metadata:
 spec:
   # Runtime image the node installs to disk after joining: firecracker + tailscale
   # (+ official exts). Tag must match the cluster template Talos version.
-  installImage: ghcr.io/syscode-labs/talos-images/installer:v1.12.6
+  installImage: ghcr.io/syscode-labs/talos-images/installer:v1.13.6
   autoprovision:
     providerid: libvirt
     providerdata: |

@@ -3,7 +3,7 @@ name: homelab-management
 kubernetes:
   version: v1.34.5
 talos:
-  version: v1.12.6
+  version: v1.13.6
 features:
   diskEncryption: false
 patches:
