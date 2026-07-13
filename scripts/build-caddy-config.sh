@@ -21,8 +21,13 @@ get_var() {
 TLS_MODE="$(get_var TLS_MODE)"
 CADDY_TS_DOMAIN="$(get_var CADDY_TS_DOMAIN)"
 CADDY_PUBLIC_DOMAIN="$(get_var CADDY_PUBLIC_DOMAIN)"
+CADDY_TS_CERT_PATH="$(get_var CADDY_TS_CERT_PATH)"
+CADDY_TS_KEY_PATH="$(get_var CADDY_TS_KEY_PATH)"
+CADDY_MACHINE_API_CERT_PATH="$(get_var CADDY_MACHINE_API_CERT_PATH)"
+CADDY_MACHINE_API_KEY_PATH="$(get_var CADDY_MACHINE_API_KEY_PATH)"
 CADDY_PUBLIC_CERT_PATH="$(get_var CADDY_PUBLIC_CERT_PATH)"
 CADDY_PUBLIC_KEY_PATH="$(get_var CADDY_PUBLIC_KEY_PATH)"
+MACHINE_API_BIND_ADDR="$(get_var MACHINE_API_BIND_ADDR)"
 
 mkdir -p "$OUT_DIR"
 
@@ -42,16 +47,39 @@ ${CADDY_PUBLIC_DOMAIN} {
       tls_insecure_skip_verify
     }
   }
+}
+
+${CADDY_PUBLIC_DOMAIN}:8090 {
+  tls ${CADDY_PUBLIC_CERT_PATH} ${CADDY_PUBLIC_KEY_PATH}
+  reverse_proxy https://${MACHINE_API_BIND_ADDR} {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
 }"
 fi
 
 cat >"$OUT_FILE" <<EOC
 {
   admin off
+  default_sni ${CADDY_TS_DOMAIN}
+  fallback_sni ${CADDY_TS_DOMAIN}
 }
 
 ${CADDY_TS_DOMAIN} {
+  tls {
+    get_certificate tailscale
+  }
   reverse_proxy https://127.0.0.1:8443 {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}
+
+${CADDY_TS_DOMAIN}:8090 {
+  tls ${CADDY_TS_CERT_PATH} ${CADDY_TS_KEY_PATH}
+  reverse_proxy https://${MACHINE_API_BIND_ADDR} {
     transport http {
       tls_insecure_skip_verify
     }
