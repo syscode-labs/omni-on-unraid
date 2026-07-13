@@ -45,12 +45,16 @@ variable "disk_size_bytes" {
 
 variable "vcpu" {
   type    = number
-  default = 4
+  # Omni server + libvirt provider + Caddy + Tailscale are light; the managed
+  # Talos nodes run on the Unraid host libvirt, not in this VM.
+  default = 2
 }
 
 variable "memory_mb" {
   type    = number
-  default = 8192
+  # ponytail: 2 GB floor — Omni + embedded etcd idle ~1–1.5 GB for a small
+  # homelab fleet. Bump to 4096 if etcd compaction / large syncs show pressure.
+  default = 2048
 }
 
 variable "hostname" {
