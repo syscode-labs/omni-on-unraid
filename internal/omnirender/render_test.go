@@ -49,6 +49,27 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 	if got := docs[0]["name"]; got != "lab" {
 		t.Fatalf("cluster name = %v, want lab", got)
 	}
+	systemExtensions := docs[0]["systemExtensions"].([]string)
+	if len(systemExtensions) != 1 || systemExtensions[0] != "siderolabs/tailscale" {
+		t.Fatalf("systemExtensions = %v, want [siderolabs/tailscale]", systemExtensions)
+	}
+	clusterPatches := docs[0]["patches"].([]map[string]any)
+	for _, want := range []string{
+		"omni/patches/cni-none.yaml",
+		"omni/patches/disable-kube-proxy.yaml",
+		"omni/patches/inline-manifests.yaml",
+	} {
+		found := false
+		for _, patch := range clusterPatches {
+			if patch["file"] == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("cluster patches missing %q: %v", want, clusterPatches)
+		}
+	}
 
 	controlPlane := docs[1]
 	if got := controlPlane["kind"]; got != "ControlPlane" {
@@ -69,6 +90,42 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 
 	if len(docs) != 2 {
 		t.Fatalf("doc count = %d, want 2", len(docs))
+	}
+}
+
+func TestClusterAddsTailscaleAuthPatchWhenNodeAuthKeyIsSet(t *testing.T) {
+	docs := ClusterDocuments(Config{NodesTailscaleAuthKey: "redacted-test-key"})
+
+	patches := docs[0]["patches"].([]map[string]any)
+	tailscalePatch := patches[len(patches)-1]
+	if got := tailscalePatch["name"]; got != "tailscale-auth" {
+		t.Fatalf("last patch name = %v, want tailscale-auth", got)
+	}
+
+	inline := tailscalePatch["inline"].(map[string]any)
+	for key, want := range map[string]string{
+		"apiVersion": "v1alpha1",
+		"kind":       "ExtensionServiceConfig",
+		"name":       "tailscale",
+	} {
+		if got := inline[key]; got != want {
+			t.Fatalf("inline[%s] = %v, want %s", key, got, want)
+		}
+	}
+
+	environment := inline["environment"].([]string)
+	if len(environment) != 1 || environment[0] != "TS_AUTHKEY=redacted-test-key" {
+		t.Fatalf("environment = %v, want TS_AUTHKEY entry", environment)
+	}
+}
+
+func TestClusterOmitsTailscaleAuthPatchWhenNodeAuthKeyIsUnset(t *testing.T) {
+	docs := ClusterDocuments(Config{})
+
+	for _, patch := range docs[0]["patches"].([]map[string]any) {
+		if patch["name"] == "tailscale-auth" {
+			t.Fatalf("tailscale auth patch should be omitted when node auth key is unset: %v", patch)
+		}
 	}
 }
 

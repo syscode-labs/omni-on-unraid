@@ -29,6 +29,8 @@ type Config struct {
 	OIDCCallbackURLs       string
 	OIDCLogoutCallbackURLs string
 	ProviderLibvirtURI     string
+	SystemExtensions       []string
+	NodesTailscaleAuthKey  string
 }
 
 func (c Config) withDefaults() Config {
@@ -64,6 +66,12 @@ func (c Config) withDefaults() Config {
 	}
 	if c.NetworkName == "" {
 		c.NetworkName = "default"
+	}
+	if len(c.SystemExtensions) == 0 {
+		c.SystemExtensions = []string{"siderolabs/tailscale"}
+	}
+	if c.NodesTailscaleAuthKey == "" {
+		c.NodesTailscaleAuthKey = os.Getenv("NODES_TAILSCALE_AUTHKEY")
 	}
 
 	return c
@@ -304,6 +312,23 @@ func MachineClassDocuments(config Config) []map[string]any {
 func ClusterDocuments(config Config) []map[string]any {
 	config = config.withDefaults()
 
+	clusterPatches := []map[string]any{
+		{"file": "omni/patches/cni-none.yaml"},
+		{"file": "omni/patches/disable-kube-proxy.yaml"},
+		{"file": "omni/patches/inline-manifests.yaml"},
+	}
+	if config.NodesTailscaleAuthKey != "" {
+		clusterPatches = append(clusterPatches, map[string]any{
+			"name": "tailscale-auth",
+			"inline": map[string]any{
+				"apiVersion":  "v1alpha1",
+				"kind":        "ExtensionServiceConfig",
+				"name":        "tailscale",
+				"environment": []string{"TS_AUTHKEY=" + config.NodesTailscaleAuthKey},
+			},
+		})
+	}
+
 	docs := []map[string]any{
 		{
 			"kind": "Cluster",
@@ -314,9 +339,11 @@ func ClusterDocuments(config Config) []map[string]any {
 			"talos": map[string]any{
 				"version": config.TalosVersion,
 			},
+			"systemExtensions": config.SystemExtensions,
 			"features": map[string]any{
 				"diskEncryption": false,
 			},
+			"patches": clusterPatches,
 		},
 		{
 			"kind": "ControlPlane",
@@ -407,6 +434,16 @@ func writeValue(writer io.Writer, key string, value any, indent int) error {
 			}
 		}
 		return nil
+	case []string:
+		if _, err := fmt.Fprintf(writer, "%s%s:\n", prefix, key); err != nil {
+			return err
+		}
+		for _, item := range typed {
+			if _, err := fmt.Fprintf(writer, "%s  - %s\n", prefix, item); err != nil {
+				return err
+			}
+		}
+		return nil
 	case string:
 		if strings.Contains(typed, "\n") {
 			if _, err := fmt.Fprintf(writer, "%s%s: |\n", prefix, key); err != nil {
@@ -459,13 +496,17 @@ func orderedKeys(value map[string]any) []string {
 		"autoprovision",
 		"providerid",
 		"providerdata",
+		"file",
+		"apiVersion",
 		"kubernetes",
 		"talos",
+		"systemExtensions",
 		"features",
 		"machineClass",
 		"size",
 		"patches",
 		"inline",
+		"environment",
 		"cluster",
 		"allowSchedulingOnControlPlanes",
 	}
