@@ -31,14 +31,17 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 	providerData := autoprovision["providerdata"].(string)
 	for _, want := range []string{
 		"storage_pool: \"omni-domains\"",
-		"extensions:",
-		"  - siderolabs/tailscale",
 		"network_interfaces:",
 		"network_name: \"default\"",
 	} {
 		if !strings.Contains(providerData, want) {
 			t.Fatalf("providerdata missing %q:\n%s", want, providerData)
 		}
+	}
+	// Nodes join via routed tailnet (bookofshadows subnet route), not an early
+	// tailscale extension — the boot schematic must carry no tailscale.
+	if strings.Contains(providerData, "tailscale") {
+		t.Fatalf("providerdata should not reference tailscale:\n%s", providerData)
 	}
 }
 
@@ -54,9 +57,8 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 	if got := docs[0]["name"]; got != "lab" {
 		t.Fatalf("cluster name = %v, want lab", got)
 	}
-	systemExtensions := docs[0]["systemExtensions"].([]string)
-	if len(systemExtensions) != 1 || systemExtensions[0] != "siderolabs/tailscale" {
-		t.Fatalf("systemExtensions = %v, want [siderolabs/tailscale]", systemExtensions)
+	if _, ok := docs[0]["systemExtensions"]; ok {
+		t.Fatalf("systemExtensions should be omitted when none set, got %v", docs[0]["systemExtensions"])
 	}
 	clusterPatches := docs[0]["patches"].([]map[string]any)
 	for _, want := range []string{
@@ -98,38 +100,14 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 	}
 }
 
-func TestClusterAddsTailscaleAuthPatchWhenNodeAuthKeyIsSet(t *testing.T) {
-	docs := ClusterDocuments(Config{NodesTailscaleAuthKey: "redacted-test-key"})
-
-	patches := docs[0]["patches"].([]map[string]any)
-	tailscalePatch := patches[len(patches)-1]
-	if got := tailscalePatch["name"]; got != "tailscale-auth" {
-		t.Fatalf("last patch name = %v, want tailscale-auth", got)
-	}
-
-	inline := tailscalePatch["inline"].(map[string]any)
-	for key, want := range map[string]string{
-		"apiVersion": "v1alpha1",
-		"kind":       "ExtensionServiceConfig",
-		"name":       "tailscale",
-	} {
-		if got := inline[key]; got != want {
-			t.Fatalf("inline[%s] = %v, want %s", key, got, want)
-		}
-	}
-
-	environment := inline["environment"].([]string)
-	if len(environment) != 1 || environment[0] != "TS_AUTHKEY=redacted-test-key" {
-		t.Fatalf("environment = %v, want TS_AUTHKEY entry", environment)
-	}
-}
-
-func TestClusterOmitsTailscaleAuthPatchWhenNodeAuthKeyIsUnset(t *testing.T) {
+func TestClusterEmitsNoTailscaleAuthPatch(t *testing.T) {
+	// Early tailscale is gone: nodes reach tailnet-only Omni via the bookofshadows
+	// subnet route, so no ExtensionServiceConfig auth patch is ever rendered.
 	docs := ClusterDocuments(Config{})
 
 	for _, patch := range docs[0]["patches"].([]map[string]any) {
 		if patch["name"] == "tailscale-auth" {
-			t.Fatalf("tailscale auth patch should be omitted when node auth key is unset: %v", patch)
+			t.Fatalf("no tailscale auth patch should ever be emitted: %v", patch)
 		}
 	}
 }

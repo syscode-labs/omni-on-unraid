@@ -2,10 +2,12 @@ name: omni-libvirt-provider
 
 services:
   omni-infra-provider-libvirt:
-    # Tailscale fork: injects a tailscale ExtensionServiceConfig into node
-    # first-boot user-data (via NODES_TAILSCALE_AUTHKEY) so nodes reach the
-    # tailnet-only Omni SideroLink endpoint and join. See
-    # github.com/syscode-labs/omni-infra-provider-libvirt-tailscale
+    # Plain upstream libvirt infra provider (no node tailscale injection).
+    # Nodes reach the tailnet-only Omni via routing: libvirt host (bookofshadows)
+    # advertises 192.168.122.0/24 into the tailnet and an ACL grant permits
+    # 192.168.122.0/24 -> tag:omni:8090,50180. A libvirt-masquerade exemption on
+    # the host keeps the VM source IP intact. See infra findings doc
+    # 2026-07-16-libvirt-unraid-lab-tailnet-join.md.
     image: ghcr.io/syscode-labs/omni-infra-provider-libvirt:ca322bc
     container_name: omni-infra-provider-libvirt
     restart: unless-stopped
@@ -16,7 +18,6 @@ services:
       USER: omni
       OMNI_ENDPOINT: "${OMNI_ENDPOINT}"
       OMNI_SERVICE_ACCOUNT_KEY: "${OMNI_SERVICE_ACCOUNT_KEY}"
-      NODES_TAILSCALE_AUTHKEY: "${NODES_TAILSCALE_AUTHKEY}"
     command:
       - --omni-api-endpoint=${OMNI_ENDPOINT}
       - --omni-service-account-key=${OMNI_SERVICE_ACCOUNT_KEY}

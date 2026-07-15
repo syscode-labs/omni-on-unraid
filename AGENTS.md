@@ -8,9 +8,8 @@
 - If machines need to be created on Unraid through Omni, use the libvirt infrastructure provider path in this repo. The provider process may talk to libvirt; agents must not manually talk to libvirt for cluster nodes.
 - If provider credentials or an `omniconfig` are missing, stop and state the exact missing Omni credential/config. Do not fall back to direct Unraid access.
 - Default lab cluster shape is three schedulable control-plane nodes via a dynamic Omni machine class.
-- For SideroLink, prefer Tailscale addressing: advertise the machine API as `https://<omni-ts-dns>:8090/`. The WireGuard advertised address is `ip:port`, so use `OMNI_TS_IP`/`OMNI_WG_ADDR` with the Omni Tailscale IP. Do not hardcode LAN IPs for Talos join paths.
-- Use `NODES_TAILSCALE_AUTHKEY` for Talos node first-boot Tailscale enrollment. Do not reuse `OMNI_TAILSCALE_AUTHKEY` for Talos nodes; that key is only for the Omni service VM bootstrap path.
-- Talos node auth must be unattended: the Tailscale auth key must be reusable and pre-tagged for the node source tag used in tailnet policy, currently `tag:talos`.
+- For SideroLink, Omni advertises its endpoint over the tailnet: machine API `https://<omni-ts-dns>:8090/`, WireGuard `<omni-ts-ip>:50180`. Do not hardcode LAN IPs for Talos join paths — the join must stay tailnet-only.
+- Nodes do NOT run Tailscale (early tailscale is removed — it hangs on `cri` in maintenance mode). They reach the tailnet-only Omni by routing: the libvirt host advertises the VM subnet into the tailnet, an ACL grant permits `<vm-subnet> -> tag:omni:8090,50180`, and a libvirt-masquerade exemption preserves the VM source IP. See `docs/sops/60-tailscale-omni-network.md` and the plans-repo findings doc `2026-07-16-libvirt-unraid-lab-tailnet-join.md`.
 
 ## Omni Control Plane Bootstrap
 
