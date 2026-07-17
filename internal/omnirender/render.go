@@ -30,7 +30,6 @@ type Config struct {
 	OIDCLogoutCallbackURLs string
 	ProviderLibvirtURI     string
 	SystemExtensions       []string
-	NodesTailscaleAuthKey  string
 	InstallImage           string
 }
 
@@ -68,16 +67,10 @@ func (c Config) withDefaults() Config {
 	if c.NetworkName == "" {
 		c.NetworkName = "default"
 	}
-	if len(c.SystemExtensions) == 0 {
-		c.SystemExtensions = []string{"siderolabs/tailscale"}
-	}
 	if c.InstallImage == "" {
-		// Runtime installer (firecracker + tailscale + official exts). Tag tracks the
+		// Runtime installer (firecracker + official exts). Tag tracks the
 		// Talos version so the two never drift.
 		c.InstallImage = "ghcr.io/syscode-labs/talos-images/installer:" + c.TalosVersion
-	}
-	if c.NodesTailscaleAuthKey == "" {
-		c.NodesTailscaleAuthKey = os.Getenv("NODES_TAILSCALE_AUTHKEY")
 	}
 
 	return c
@@ -324,18 +317,6 @@ func ClusterDocuments(config Config) []map[string]any {
 		{"file": "omni/patches/disable-kube-proxy.yaml"},
 		{"file": "omni/patches/inline-manifests.yaml"},
 	}
-	if config.NodesTailscaleAuthKey != "" {
-		clusterPatches = append(clusterPatches, map[string]any{
-			"name": "tailscale-auth",
-			"inline": map[string]any{
-				"apiVersion":  "v1alpha1",
-				"kind":        "ExtensionServiceConfig",
-				"name":        "tailscale",
-				"environment": []string{"TS_AUTHKEY=" + config.NodesTailscaleAuthKey},
-			},
-		})
-	}
-
 	docs := []map[string]any{
 		{
 			"kind": "Cluster",
@@ -346,7 +327,6 @@ func ClusterDocuments(config Config) []map[string]any {
 			"talos": map[string]any{
 				"version": config.TalosVersion,
 			},
-			"systemExtensions": config.SystemExtensions,
 			"features": map[string]any{
 				"diskEncryption": false,
 			},
@@ -369,6 +349,12 @@ func ClusterDocuments(config Config) []map[string]any {
 				},
 			},
 		},
+	}
+
+	// Node system extensions are opt-in; only emit the key when set so the
+	// cluster template stays clean when there are none (no early tailscale).
+	if len(config.SystemExtensions) > 0 {
+		docs[0]["systemExtensions"] = config.SystemExtensions
 	}
 
 	if config.Workers > 0 {
@@ -403,12 +389,14 @@ func providerData(config Config) string {
 	for _, ext := range config.SystemExtensions {
 		extensions += fmt.Sprintf("  - %s\n", ext)
 	}
+	if extensions != "" {
+		extensions = "extensions:\n" + extensions
+	}
 
 	return fmt.Sprintf(`cores: %d
 memory: %d
 disk_size: %d
 storage_pool: "%s"
-extensions:
 %snetwork_interfaces:
   - driver: "virtio"
     network_name: "%s"

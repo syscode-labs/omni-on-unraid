@@ -45,7 +45,6 @@ func run() error {
 	flags.StringVar(&config.OIDCCallbackURLs, "oidc-callback-urls", "", "comma-separated OIDC callback URLs")
 	flags.StringVar(&config.OIDCLogoutCallbackURLs, "oidc-logout-callback-urls", "", "comma-separated OIDC logout callback URLs")
 	flags.StringVar(&config.ProviderLibvirtURI, "provider-libvirt-uri", "", "libvirt URI used by the Omni libvirt provider")
-	flags.StringVar(&config.NodesTailscaleAuthKey, "nodes-tailscale-authkey", "", "Talos node Tailscale auth key for first-boot extension service config")
 
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err

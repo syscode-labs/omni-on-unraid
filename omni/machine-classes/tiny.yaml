@@ -4,8 +4,8 @@ metadata:
   id: unraid-tiny
 
 spec:
-  # Runtime image the node installs to disk after joining: firecracker + tailscale
-  # (+ official exts). Tag must match the cluster template Talos version.
+  # Runtime image the node installs to disk after joining: firecracker + official
+  # exts. Tag must match the cluster template Talos version.
   installImage: ghcr.io/syscode-labs/talos-images/installer:v1.13.6
   autoprovision:
     providerid: libvirt
@@ -14,10 +14,6 @@ spec:
       memory: 2048
       disk_size: 20
       storage_pool: "omni-domains"
-      # Boot/maintenance schematic extensions (official only) so the node reaches
-      # tailnet-only Omni to join. Requires the tailscale fork of the libvirt provider.
-      extensions:
-        - siderolabs/tailscale
       network_interfaces:
         - driver: "virtio"
           network_name: "default"

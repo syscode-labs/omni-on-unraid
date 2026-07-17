@@ -4,8 +4,6 @@ kubernetes:
   version: v1.34.5
 talos:
   version: v1.13.6
-systemExtensions:
-  - siderolabs/tailscale
 features:
   diskEncryption: false
 patches:
