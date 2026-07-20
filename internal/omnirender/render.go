@@ -12,25 +12,29 @@ import (
 )
 
 type Config struct {
-	ClusterName            string
-	MachineClass           string
-	ProviderID             string
-	ControlPlanes          int
-	Workers                int
-	KubernetesVersion      string
-	TalosVersion           string
-	Cores                  int
-	MemoryMB               int
-	DiskGB                 int
-	StoragePool            string
-	NetworkName            string
-	OIDCClientID           string
-	OIDCClientName         string
-	OIDCCallbackURLs       string
-	OIDCLogoutCallbackURLs string
-	ProviderLibvirtURI     string
-	SystemExtensions       []string
-	InstallImage           string
+	ClusterName             string
+	MachineClass            string
+	ProviderID              string
+	ControlPlanes           int
+	Workers                 int
+	KubernetesVersion       string
+	TalosVersion            string
+	Cores                   int
+	MemoryMB                int
+	DiskGB                  int
+	StoragePool             string
+	NetworkName             string
+	OIDCClientID            string
+	OIDCClientName          string
+	OIDCCallbackURLs        string
+	OIDCLogoutCallbackURLs  string
+	ProviderLibvirtURI      string
+	InstallImage            string
+	ImageFactoryExternalURL string
+	ImageFactoryRegistry    string
+	ImageFactoryNamespace   string
+	ImageFactorySigningKey  string
+	ImageFactoryCosignKey   string
 }
 
 func (c Config) withDefaults() Config {
@@ -68,8 +72,7 @@ func (c Config) withDefaults() Config {
 		c.NetworkName = "default"
 	}
 	if c.InstallImage == "" {
-		// Runtime installer (firecracker + official exts). Tag tracks the
-		// Talos version so the two never drift.
+		// Runtime installer. Tag tracks the Talos version so the two never drift.
 		c.InstallImage = "ghcr.io/syscode-labs/talos-images/installer:" + c.TalosVersion
 	}
 
@@ -194,6 +197,77 @@ func ProviderConfig(outputPath string, config Config) error {
 	return os.WriteFile(outputPath, []byte(configYAML), 0o600)
 }
 
+func ImageFactoryConfig(outputPath string, config Config) error {
+	if outputPath == "" {
+		return fmt.Errorf("output file path is required")
+	}
+	if config.ImageFactoryExternalURL == "" {
+		config.ImageFactoryExternalURL = os.Getenv("OMNI_IMAGE_FACTORY_ADDRESS")
+	}
+	if config.ImageFactoryRegistry == "" {
+		config.ImageFactoryRegistry = os.Getenv("OMNI_IMAGE_FACTORY_REGISTRY")
+	}
+	if config.ImageFactoryNamespace == "" {
+		config.ImageFactoryNamespace = os.Getenv("OMNI_IMAGE_FACTORY_NAMESPACE")
+	}
+	if config.ImageFactorySigningKey == "" {
+		config.ImageFactorySigningKey = os.Getenv("OMNI_IMAGE_FACTORY_SIGNING_KEY_PATH")
+	}
+	if config.ImageFactoryCosignKey == "" {
+		config.ImageFactoryCosignKey = os.Getenv("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH")
+	}
+	if config.ImageFactoryExternalURL == "" {
+		return fmt.Errorf("OMNI_IMAGE_FACTORY_ADDRESS is required")
+	}
+	if config.ImageFactoryRegistry == "" {
+		return fmt.Errorf("OMNI_IMAGE_FACTORY_REGISTRY is required")
+	}
+	if config.ImageFactoryNamespace == "" {
+		config.ImageFactoryNamespace = "syscode-labs/image-factory"
+	}
+	if config.ImageFactorySigningKey == "" {
+		return fmt.Errorf("OMNI_IMAGE_FACTORY_SIGNING_KEY_PATH is required")
+	}
+	if config.ImageFactoryCosignKey == "" {
+		return fmt.Errorf("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH is required")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+
+	configYAML := fmt.Sprintf(`artifacts:
+  core:
+    registry: %s
+  schematic:
+    registry: %s
+    namespace: %s
+    repository: schematics
+  installer:
+    internal:
+      registry: %s
+      namespace: %s
+      repository: installer-internal
+    external:
+      registry: %s
+      namespace: %s
+      repository: installer
+containerSignature:
+  publicKeyFile: %s
+  subjectRegExp: ""
+cache:
+  oci:
+    registry: %s
+    namespace: %s
+    repository: cache
+  signingKeyPath: %s
+http:
+  externalURL: %s
+`, config.ImageFactoryRegistry, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactoryCosignKey, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
+
+	return os.WriteFile(outputPath, []byte(configYAML), 0o600)
+}
+
 func LoadDotEnv(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -269,6 +343,15 @@ func trimEnvValue(value string) string {
 }
 
 func jsonList(csv string) ([]byte, error) {
+	values := csvValues(csv)
+	if len(values) == 0 {
+		return nil, fmt.Errorf("at least one value is required")
+	}
+
+	return json.Marshal(values)
+}
+
+func csvValues(csv string) []string {
 	parts := strings.Split(csv, ",")
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -277,11 +360,8 @@ func jsonList(csv string) ([]byte, error) {
 			values = append(values, value)
 		}
 	}
-	if len(values) == 0 {
-		return nil, fmt.Errorf("at least one value is required")
-	}
 
-	return json.Marshal(values)
+	return values
 }
 
 func sqlQuote(value string) string {
@@ -351,12 +431,6 @@ func ClusterDocuments(config Config) []map[string]any {
 		},
 	}
 
-	// Node system extensions are opt-in; only emit the key when set so the
-	// cluster template stays clean when there are none (no early tailscale).
-	if len(config.SystemExtensions) > 0 {
-		docs[0]["systemExtensions"] = config.SystemExtensions
-	}
-
 	if config.Workers > 0 {
 		docs = append(docs, map[string]any{
 			"kind": "Workers",
@@ -385,22 +459,14 @@ func WriteYAML(writer io.Writer, docs []map[string]any) error {
 }
 
 func providerData(config Config) string {
-	var extensions string
-	for _, ext := range config.SystemExtensions {
-		extensions += fmt.Sprintf("  - %s\n", ext)
-	}
-	if extensions != "" {
-		extensions = "extensions:\n" + extensions
-	}
-
 	return fmt.Sprintf(`cores: %d
 memory: %d
 disk_size: %d
 storage_pool: "%s"
-%snetwork_interfaces:
+network_interfaces:
   - driver: "virtio"
     network_name: "%s"
-`, config.Cores, config.MemoryMB, config.DiskGB, config.StoragePool, extensions, config.NetworkName)
+`, config.Cores, config.MemoryMB, config.DiskGB, config.StoragePool, config.NetworkName)
 }
 
 func writeMap(writer io.Writer, value map[string]any, indent int) error {

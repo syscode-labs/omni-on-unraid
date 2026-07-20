@@ -197,6 +197,9 @@ OMNI_EXTRA_ARGS_DEFAULT="--storage-kind=${OMNI_STORAGE_KIND} --sqlite-storage-pa
 if [ "$OMNI_STORAGE_KIND" = "etcd" ] && [ "$OMNI_ETCD_EMBEDDED" = "true" ]; then
   OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --etcd-embedded --etcd-embedded-db-path=${OMNI_ETCD_EMBEDDED_DB_PATH}"
 fi
+if [ -n "${OMNI_IMAGE_FACTORY_ADDRESS:-}" ]; then
+  OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --image-factory-address=${OMNI_IMAGE_FACTORY_ADDRESS}"
+fi
 OMNI_EXTRA_ARGS="${OMNI_EXTRA_ARGS:-$OMNI_EXTRA_ARGS_DEFAULT}"
 CADDY_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN}}"
 # Only set public domain if explicitly configured — avoids generating a Caddy block with no cert

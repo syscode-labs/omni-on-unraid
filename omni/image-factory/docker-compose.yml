@@ -1,0 +1,18 @@
+name: omni-image-factory
+
+services:
+  image-factory:
+    image: ghcr.io/siderolabs/image-factory:${OMNI_IMAGE_FACTORY_TAG:-latest}
+    container_name: omni-image-factory
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ../../generated/image-factory/config.yaml:/config.yaml:ro
+      - ${OMNI_IMAGE_FACTORY_SIGNING_KEY_FILE:-/dev/null}:/keys/cache-signing.key:ro
+      - ${OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_FILE:-/dev/null}:/keys/cosign.pub:ro
+      - ${OMNI_IMAGE_FACTORY_DOCKER_CONFIG:-/dev/null}:/root/.docker/config.json:ro
+    environment:
+      GITHUB_TOKEN: "${OMNI_IMAGE_FACTORY_GITHUB_TOKEN:-}"
+    command:
+      - --config=/config.yaml
+      - --log-level=${OMNI_IMAGE_FACTORY_LOG_LEVEL:-info}
