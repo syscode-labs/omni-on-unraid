@@ -17,7 +17,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return fmt.Errorf("usage: omni-render <machineclass|cluster|pocketid-oidc-sql|provider-overlay|provider-config> [flags]")
+		return fmt.Errorf("usage: omni-render <machineclass|cluster|pocketid-oidc-sql|provider-overlay|provider-config|image-factory-config> [flags]")
 	}
 	if err := omnirender.LoadDotEnv(".env"); err != nil {
 		return err
@@ -45,6 +45,11 @@ func run() error {
 	flags.StringVar(&config.OIDCCallbackURLs, "oidc-callback-urls", "", "comma-separated OIDC callback URLs")
 	flags.StringVar(&config.OIDCLogoutCallbackURLs, "oidc-logout-callback-urls", "", "comma-separated OIDC logout callback URLs")
 	flags.StringVar(&config.ProviderLibvirtURI, "provider-libvirt-uri", "", "libvirt URI used by the Omni libvirt provider")
+	flags.StringVar(&config.ImageFactoryExternalURL, "image-factory-address", "", "external URL used by Omni and Talos nodes for Image Factory")
+	flags.StringVar(&config.ImageFactoryRegistry, "image-factory-registry", "", "registry endpoint used by Image Factory for schematics/cache/installers")
+	flags.StringVar(&config.ImageFactoryNamespace, "image-factory-namespace", "", "registry namespace used by Image Factory for schematics/cache/installers")
+	flags.StringVar(&config.ImageFactorySigningKey, "image-factory-signing-key-path", "", "runtime path to Image Factory cache signing key")
+	flags.StringVar(&config.ImageFactoryCosignKey, "image-factory-cosign-public-key-path", "", "runtime path to cosign public key trusted by Image Factory")
 
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -71,6 +76,8 @@ func run() error {
 		return os.WriteFile(*output, []byte(sql), 0o600)
 	case "provider-config":
 		return omnirender.ProviderConfig(*output, config)
+	case "image-factory-config":
+		return omnirender.ImageFactoryConfig(*output, config)
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}

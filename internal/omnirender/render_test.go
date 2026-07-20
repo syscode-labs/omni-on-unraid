@@ -77,6 +77,11 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 			t.Fatalf("cluster patches missing %q: %v", want, clusterPatches)
 		}
 	}
+	for _, patch := range clusterPatches {
+		if patch["name"] == "install-image" {
+			t.Fatalf("cluster must not patch install image; Omni does not treat it as organic image drift: %v", patch)
+		}
+	}
 
 	controlPlane := docs[1]
 	if got := controlPlane["kind"]; got != "ControlPlane" {
@@ -215,5 +220,67 @@ func TestProviderConfigUsesEnvLibvirtURI(t *testing.T) {
 	}
 	if !strings.Contains(string(configYAML), "qemu+libssh://omniops@lab-host/system?known_hosts_verify=ignore") {
 		t.Fatalf("provider config missing libvirt URI:\n%s", string(configYAML))
+	}
+}
+
+func TestImageFactoryConfigUsesEnv(t *testing.T) {
+	t.Setenv("OMNI_IMAGE_FACTORY_ADDRESS", "https://factory.example.ts.net")
+	t.Setenv("OMNI_IMAGE_FACTORY_REGISTRY", "registry.example.ts.net:5000")
+	t.Setenv("OMNI_IMAGE_FACTORY_SIGNING_KEY_PATH", "/keys/cache-signing.key")
+	t.Setenv("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH", "/keys/cosign.pub")
+	outputPath := filepath.Join(t.TempDir(), "generated", "image-factory", "config.yaml")
+
+	if err := ImageFactoryConfig(outputPath, Config{}); err != nil {
+		t.Fatalf("ImageFactoryConfig returned error: %v", err)
+	}
+
+	configYAML, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile image-factory config: %v", err)
+	}
+	config := string(configYAML)
+	for _, want := range []string{
+		"registry: registry.example.ts.net:5000",
+		"namespace: syscode-labs/image-factory",
+		"repository: schematics",
+		"repository: installer",
+		"repository: cache",
+		"publicKeyFile: /keys/cosign.pub",
+		"signingKeyPath: /keys/cache-signing.key",
+		"externalURL: https://factory.example.ts.net",
+	} {
+		if !strings.Contains(config, want) {
+			t.Fatalf("image factory config missing %q:\n%s", want, config)
+		}
+	}
+}
+
+func TestImageFactoryConfigUsesCustomNamespace(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	err := ImageFactoryConfig(outputPath, Config{
+		ImageFactoryExternalURL: "https://factory.example.ts.net",
+		ImageFactoryRegistry:    "ghcr.io",
+		ImageFactoryNamespace:   "syscode-labs/talos-factory",
+		ImageFactorySigningKey:  "/keys/cache-signing.key",
+		ImageFactoryCosignKey:   "/keys/cosign.pub",
+	})
+	if err != nil {
+		t.Fatalf("ImageFactoryConfig returned error: %v", err)
+	}
+
+	configYAML, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile image-factory config: %v", err)
+	}
+	if !strings.Contains(string(configYAML), "namespace: syscode-labs/talos-factory") {
+		t.Fatalf("image factory config missing custom namespace:\n%s", configYAML)
+	}
+}
+
+func TestImageFactoryConfigRequiresAddress(t *testing.T) {
+	err := ImageFactoryConfig(filepath.Join(t.TempDir(), "config.yaml"), Config{})
+	if err == nil || !strings.Contains(err.Error(), "OMNI_IMAGE_FACTORY_ADDRESS is required") {
+		t.Fatalf("ImageFactoryConfig error = %v, want missing address", err)
 	}
 }

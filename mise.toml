@@ -145,6 +145,27 @@ run = "docker compose -f omni/provider/docker-compose.yml --env-file .env logs -
 description = "Stop Omni libvirt infrastructure provider"
 run = "docker compose -f omni/provider/docker-compose.yml --env-file .env down"
 
+[tasks."omni:image-factory:render-config"]
+description = "Render on-prem Image Factory config used for custom Talos schematics"
+run = "go run ./cmd/omni-render image-factory-config --output generated/image-factory/config.yaml"
+
+[tasks."omni:image-factory:up"]
+description = "Start on-prem Image Factory via Docker Compose"
+depends = ["omni:image-factory:render-config"]
+run = "docker compose -f omni/image-factory/docker-compose.yml --env-file .env up -d"
+
+[tasks."omni:image-factory:status"]
+description = "Show on-prem Image Factory status"
+run = "docker compose -f omni/image-factory/docker-compose.yml --env-file .env ps"
+
+[tasks."omni:image-factory:logs"]
+description = "Tail on-prem Image Factory logs"
+run = "docker compose -f omni/image-factory/docker-compose.yml --env-file .env logs -f"
+
+[tasks."omni:image-factory:down"]
+description = "Stop on-prem Image Factory"
+run = "docker compose -f omni/image-factory/docker-compose.yml --env-file .env down"
+
 [tasks."omni:machineclass:render"]
 description = "Render Omni dynamic libvirt MachineClasses"
 run = '''
