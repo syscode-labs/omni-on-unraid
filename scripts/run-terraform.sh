@@ -50,7 +50,10 @@ if [ -z "${TF_VAR_base_image_path:-}" ]; then
       mkdir -p "$(dirname "$local_base_image_path")"
       curl -fL "$base_url" -o "$local_base_image_path"
     fi
-    export TF_VAR_base_image_path="$local_base_image_path"
+    # Terraform stores this path in state and treats any textual change as a new
+    # base image, which force-replaces the base volume, the root volume, and the
+    # domain. A relative OMNI_LOCAL_BASE_IMAGE_PATH therefore destroys the VM.
+    export TF_VAR_base_image_path="$(cd "$(dirname "$local_base_image_path")" && pwd)/$(basename "$local_base_image_path")"
   fi
 fi
 
@@ -106,7 +109,7 @@ case "$action" in
   apply)
     terraform init -upgrade
     tf_apply_args=()
-    if [ "${TF_AUTO_APPROVE:-1}" = "1" ]; then
+    if [ "${TF_AUTO_APPROVE:-0}" = "1" ]; then
       tf_apply_args+=("-auto-approve")
     fi
     if [ "${TF_REPLACE_DOMAIN:-0}" = "1" ]; then
