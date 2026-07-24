@@ -34,8 +34,21 @@ helm template cilium cilium/cilium \
   --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
   > "${TMPDIR}/cilium.yaml"
 
-curl -sL "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml" \
-  > "${TMPDIR}/argocd.yaml"
+# Upstream install.yaml carries NO namespace on its resources — it relies on
+# `kubectl apply -n argocd`. Talos applies inline manifests verbatim with no
+# namespace default, so the namespaced resources land in `default` and Argo's
+# runtime never comes up in argocd. Stamp with kustomize (also fixes the RBAC
+# binding subjects) and prepend the Namespace since kustomize won't create it.
+mkdir -p "${TMPDIR}/argocd"
+curl -sfL "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml" \
+  -o "${TMPDIR}/argocd/install.yaml"
+cat > "${TMPDIR}/argocd/kustomization.yaml" <<'KUST'
+namespace: argocd
+resources:
+  - install.yaml
+KUST
+{ printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: argocd\n---\n'; \
+  kubectl kustomize "${TMPDIR}/argocd"; } > "${TMPDIR}/argocd.yaml"
 
 CILIUM_CONTENT="$(sed 's/^/        /' "${TMPDIR}/cilium.yaml")"
 ARGOCD_CONTENT="$(sed 's/^/        /' "${TMPDIR}/argocd.yaml")"
