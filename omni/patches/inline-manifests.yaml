@@ -26209,7 +26209,7 @@ cluster:
                           clusterType: homelab-kvm
                   - git:
                       repoURL: https://github.com/syscode-labs/syscode-homelab-gitops-apps
-                      revision: feat/gitops-applicationset-layering
+                      revision: main
                       files:
                         - path: apps/*/app.yaml
             - matrix:                                   # per cluster-TYPE apps
@@ -26220,7 +26220,7 @@ cluster:
                           clusterType: homelab-kvm
                   - git:
                       repoURL: https://github.com/syscode-labs/syscode-homelab-gitops-apps
-                      revision: feat/gitops-applicationset-layering
+                      revision: main
                       files:
                         - path: types/{{.clusterType}}/apps/*/app.yaml
             - matrix:                                   # per CLUSTER apps
@@ -26231,7 +26231,7 @@ cluster:
                           clusterType: homelab-kvm
                   - git:
                       repoURL: https://github.com/syscode-labs/syscode-homelab-gitops-apps
-                      revision: feat/gitops-applicationset-layering
+                      revision: main
                       files:
                         - path: clusters/{{.clusterName}}/apps/*/app.yaml
           template:
@@ -26250,7 +26250,7 @@ cluster:
                       - $v/values/types/{{.clusterType}}/{{.path.basename}}.yaml
                       - $v/values/clusters/{{.clusterName}}/{{.path.basename}}.yaml
                 - repoURL: https://github.com/syscode-labs/syscode-homelab-gitops-apps
-                  targetRevision: feat/gitops-applicationset-layering
+                  targetRevision: main
                   ref: v
               destination:
                 server: https://kubernetes.default.svc
@@ -26273,7 +26273,7 @@ cluster:
           project: default
           source:
             repoURL: https://github.com/syscode-labs/syscode-homelab-gitops-apps
-            targetRevision: feat/gitops-applicationset-layering
+            targetRevision: main
             path: bootstrap
           destination:
             server: https://kubernetes.default.svc
@@ -26291,7 +26291,7 @@ cluster:
           project: default
           source:
             repoURL: https://github.com/syscode-labs/syscode-homelab-gitops-apps
-            targetRevision: feat/gitops-applicationset-layering
+            targetRevision: main
             path: clusters/unraid-lab/apps
             directory: {recurse: true, include: "*/application.yaml"}
           destination:
