@@ -5,8 +5,9 @@ metadata:
 
 spec:
   # Runtime image the node installs to disk after joining: firecracker + official
-  # exts. Tag must match the cluster template Talos version.
-  installImage: ghcr.io/syscode-labs/talos-images/installer:v1.13.6
+  # exts (incl. qemu-guest-agent, needed by this repo's libvirt-only provider).
+  # Tag must match the cluster template Talos version.
+  installImage: ghcr.io/syscode-labs/talos-images/installer:v1.13.6-libvirt
   autoprovision:
     providerid: libvirt
     providerdata: |
