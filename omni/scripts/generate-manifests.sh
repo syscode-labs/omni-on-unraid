@@ -6,7 +6,7 @@
 #   omni/patches/inline-manifests-management.yaml  mgmt cluster — Cilium + Argo CD + root App
 set -euo pipefail
 
-CILIUM_VERSION="${CILIUM_VERSION:-1.17.2}"
+CILIUM_VERSION="${CILIUM_VERSION:-1.19.6}"
 ARGOCD_VERSION="${ARGOCD_VERSION:-v2.14.4}"
 ARGOCD_APP_REPO_URL="${ARGOCD_APP_REPO_URL:-https://github.com/syscode-labs/oci-talos-gitops-apps}"
 ARGOCD_APP_PATH="${ARGOCD_APP_PATH:-bootstrap}"

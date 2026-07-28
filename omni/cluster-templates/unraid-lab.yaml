@@ -7,16 +7,16 @@ talos:
 features:
   diskEncryption: false
 patches:
-  - file: omni/patches/cni-none.yaml
-  - file: omni/patches/disable-kube-proxy.yaml
-  - file: omni/patches/inline-manifests.yaml
+  - file: ../patches/cni-none.yaml
+  - file: ../patches/disable-kube-proxy.yaml
+  - file: ../patches/inline-manifests.yaml
 ---
 kind: ControlPlane
 machineClass:
   name: unraid-cp
   size: 3
 patches:
-  - file: omni/patches/allow-scheduling.yaml
+  - file: ../patches/allow-scheduling.yaml
 # Uncomment when worker capacity is wanted.
 # ---
 # kind: Workers

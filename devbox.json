@@ -18,7 +18,7 @@
       "provider:apply": "omnictl apply -f omni/provider/infra-provider.yaml && go run ./cmd/omni-render provider-config --output generated/provider/libvirt-config.yaml && docker compose -f omni/provider/docker-compose.yml --env-file .env up -d",
       "provider:status": "docker compose -f omni/provider/docker-compose.yml --env-file .env ps",
       "machineclass:apply": "omnictl apply -f omni/machine-classes/control-plane.yaml && omnictl apply -f omni/machine-classes/worker.yaml",
-      "cluster:apply": "omnictl cluster template validate -f omni/cluster-templates/unraid-lab.yaml && omnictl cluster template sync -f omni/cluster-templates/unraid-lab.yaml --verbose",
+      "cluster:apply": "omnictl cluster template validate --allowed-dir \"$PWD/omni\" -f omni/cluster-templates/unraid-lab.yaml && omnictl cluster template sync --dry-run --allowed-dir \"$PWD/omni\" -f omni/cluster-templates/unraid-lab.yaml && omnictl cluster template sync --allowed-dir \"$PWD/omni\" -f omni/cluster-templates/unraid-lab.yaml --verbose",
       "talos:generate-manifests": "./omni/scripts/generate-manifests.sh"
     }
   }
