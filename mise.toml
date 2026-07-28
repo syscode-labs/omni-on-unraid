@@ -191,9 +191,13 @@ omnictl apply -f generated/machineclass-worker.yaml
 description = "Render Omni cluster template using dynamic machine allocation"
 run = "go run ./cmd/omni-render cluster --output generated/cluster.yaml --machine-class unraid-cp"
 
+[tasks."omni:bootstrap-secrets"]
+description = "Store the Tailscale OAuth secret in Omni before cluster provisioning"
+run = "./omni/scripts/inject-tailscale-oauth.sh"
+
 [tasks."omni:cluster:apply"]
 description = "Validate, sync, and wait on Omni cluster template"
-depends = ["omni:version-check", "omni:cluster:render"]
+depends = ["omni:version-check", "omni:bootstrap-secrets", "omni:cluster:render"]
 run = '''
 omnictl cluster template validate -f generated/cluster.yaml
 omnictl cluster template sync -f generated/cluster.yaml --verbose
