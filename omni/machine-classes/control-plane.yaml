@@ -12,7 +12,7 @@ spec:
     providerid: libvirt
     providerdata: |
       cores: 4
-      memory: 8192
+      memory: 6144
       disk_size: 40
       storage_pool: "omni-domains"
       network_interfaces:

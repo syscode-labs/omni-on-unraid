@@ -191,6 +191,63 @@ func TestBuildComposeEnvCanSetImageFactoryAddress(t *testing.T) {
 	}
 }
 
+func TestBuildComposeEnvCanAutoAcceptEula(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+	tempRoot := copyScripts(t, repoRoot, "build-compose-env.sh")
+
+	envFile := filepath.Join(tempRoot, ".env")
+	env := strings.Join([]string{
+		"OMNI_DOMAIN=omni.example.ts.net",
+		"OMNI_DATA_DIR=" + filepath.Join(tempRoot, "data"),
+		"OMNI_EULA_ACCEPT_EMAIL=admin@example.ts.net",
+		"OMNI_EULA_ACCEPT_NAME=Admin",
+		"",
+	}, "\n")
+	if err := os.WriteFile(envFile, []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	runScript(t, tempRoot, "build-compose-env.sh")
+
+	envOutput, err := os.ReadFile(filepath.Join(tempRoot, "generated", "compose.env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := string(envOutput)
+	if !strings.Contains(output, "--eula-accept-email=admin@example.ts.net") {
+		t.Fatalf("compose env should configure EULA accept email:\n%s", output)
+	}
+	if !strings.Contains(output, "--eula-accept-name=Admin") {
+		t.Fatalf("compose env should configure EULA accept name:\n%s", output)
+	}
+}
+
+func TestBuildComposeEnvOmitsEulaFlagsWhenUnset(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+	tempRoot := copyScripts(t, repoRoot, "build-compose-env.sh")
+
+	envFile := filepath.Join(tempRoot, ".env")
+	env := strings.Join([]string{
+		"OMNI_DOMAIN=omni.example.ts.net",
+		"OMNI_DATA_DIR=" + filepath.Join(tempRoot, "data"),
+		"",
+	}, "\n")
+	if err := os.WriteFile(envFile, []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	runScript(t, tempRoot, "build-compose-env.sh")
+
+	envOutput, err := os.ReadFile(filepath.Join(tempRoot, "generated", "compose.env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := string(envOutput)
+	if strings.Contains(output, "--eula-accept") {
+		t.Fatalf("compose env should not set EULA flags when unconfigured:\n%s", output)
+	}
+}
+
 func copyScripts(t *testing.T, repoRoot string, names ...string) string {
 	t.Helper()
 

@@ -60,7 +60,9 @@ func (c Config) withDefaults() Config {
 		c.Cores = 4
 	}
 	if c.MemoryMB == 0 {
-		c.MemoryMB = 8192
+		// 8192 put too much memory pressure on the Unraid host with 3 CPs
+		// running concurrently; trimmed 2026-07-28.
+		c.MemoryMB = 6144
 	}
 	if c.DiskGB == 0 {
 		c.DiskGB = 40
