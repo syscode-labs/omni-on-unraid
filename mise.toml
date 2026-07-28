@@ -1,7 +1,7 @@
 [tools]
 terraform = "1.9.8"
 go = "1.25.8"
-omnictl = "1.5.8"
+omnictl = "1.9.3"
 kubectl = "1.34.2"
 kustomize = "5.7.1"
 
@@ -30,6 +30,10 @@ run = "./scripts/run-terraform.sh apply"
 [tasks."infra:destroy"]
 description = "Destroy Omni VM infrastructure"
 run = "./scripts/run-terraform.sh destroy"
+
+[tasks."omni:version-check"]
+description = "Fail if omnictl on PATH doesn't match the deployed Omni server version"
+run = "./scripts/check-omni-version.sh"
 
 [tasks."omni:doctor"]
 description = "Validate local prerequisites for Omni operations"
@@ -176,7 +180,7 @@ go run ./cmd/omni-render machineclass --output generated/machineclass-worker.yam
 
 [tasks."omni:machineclass:apply"]
 description = "Apply UI-selectable Omni libvirt MachineClasses with omnictl"
-depends = ["omni:machineclass:render"]
+depends = ["omni:version-check", "omni:machineclass:render"]
 run = '''
 omnictl apply -f generated/machineclass-control-plane.yaml
 omnictl apply -f generated/machineclass-worker.yaml
@@ -188,7 +192,7 @@ run = "go run ./cmd/omni-render cluster --output generated/cluster.yaml --machin
 
 [tasks."omni:cluster:apply"]
 description = "Validate, sync, and wait on Omni cluster template"
-depends = ["omni:cluster:render"]
+depends = ["omni:version-check", "omni:cluster:render"]
 run = '''
 omnictl cluster template validate -f generated/cluster.yaml
 omnictl cluster template sync -f generated/cluster.yaml --verbose

@@ -200,6 +200,11 @@ fi
 if [ -n "${OMNI_IMAGE_FACTORY_ADDRESS:-}" ]; then
   OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --image-factory-address=${OMNI_IMAGE_FACTORY_ADDRESS}"
 fi
+# Auto-accept the EULA on start so an Omni upgrade never needs a manual
+# browser click before omnictl/cluster provisioning can proceed again.
+if [ -n "${OMNI_EULA_ACCEPT_EMAIL:-}" ]; then
+  OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --eula-accept-email=${OMNI_EULA_ACCEPT_EMAIL} --eula-accept-name=${OMNI_EULA_ACCEPT_NAME:-${OMNI_EULA_ACCEPT_EMAIL}}"
+fi
 OMNI_EXTRA_ARGS="${OMNI_EXTRA_ARGS:-$OMNI_EXTRA_ARGS_DEFAULT}"
 CADDY_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN}}"
 # Only set public domain if explicitly configured — avoids generating a Caddy block with no cert

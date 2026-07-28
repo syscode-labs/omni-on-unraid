@@ -60,7 +60,9 @@ func (c Config) withDefaults() Config {
 		c.Cores = 4
 	}
 	if c.MemoryMB == 0 {
-		c.MemoryMB = 8192
+		// 8192 put too much memory pressure on the Unraid host with 3 CPs
+		// running concurrently; trimmed 2026-07-28.
+		c.MemoryMB = 6144
 	}
 	if c.DiskGB == 0 {
 		c.DiskGB = 40
@@ -73,7 +75,12 @@ func (c Config) withDefaults() Config {
 	}
 	if c.InstallImage == "" {
 		// Runtime installer. Tag tracks the Talos version so the two never drift.
-		c.InstallImage = "ghcr.io/syscode-labs/talos-images/installer:" + c.TalosVersion
+		// -libvirt variant: same custom exts (incl. talos-ext-firecracker) plus
+		// qemu-guest-agent, which this repo's libvirt-only provider needs.
+		// NOT PERSISTED by Omni <=1.5.8 as of 2026-07-28 (MachineClass.installImage
+		// round-trips empty on every class in this deployment, confirmed live) —
+		// this field is currently inert. See syscode-labs/omni-on-unraid#7.
+		c.InstallImage = "ghcr.io/syscode-labs/talos-images/installer:" + c.TalosVersion + "-libvirt"
 	}
 
 	return c
