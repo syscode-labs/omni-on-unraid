@@ -63,6 +63,35 @@ classes, cluster templates, and the Omni infrastructure provider). They must not
 SSH to Unraid, call `virsh`, run Terraform, or create VMs directly. The provider
 may connect to libvirt because that is Omni's infrastructure-provider mechanism.
 
+## Tailscale Operator OAuth
+
+Before `mise run omni:cluster:apply`, create `omni/secrets.env` from
+`omni/secrets.env.example` and set `TS_OAUTH_CLIENT_ID` and
+`TS_OAUTH_CLIENT_SECRET`. The task stores these only in Omni's encrypted
+ConfigPatch, then Talos creates the in-cluster `tailscale/operator-oauth` Secret
+before Argo starts the Tailscale operator.
+
+Create a dedicated OAuth client in the Tailscale admin console with:
+
+- Services: Read and Write
+- Devices / Core: Read and Write
+- Keys / Auth Keys: Read and Write
+- Tag: `tag:k8s-operator`
+
+The tailnet ACL must allow that tag to be owned by the OAuth client creator, for
+example:
+
+```json
+{
+  "tagOwners": {
+    "tag:k8s-operator": ["autogroup:admin"]
+  }
+}
+```
+
+Provisioning stops before creating a cluster when either OAuth value is missing.
+Do not commit `omni/secrets.env`.
+
 ## IaC Flow (Preferred)
 
 This flow bootstraps the Omni control-plane VM itself. It is not the Talos cluster
