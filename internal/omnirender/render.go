@@ -51,10 +51,10 @@ func (c Config) withDefaults() Config {
 		c.ControlPlanes = 3
 	}
 	if c.KubernetesVersion == "" {
-		c.KubernetesVersion = "v1.34.5"
+		c.KubernetesVersion = "v1.37.0"
 	}
 	if c.TalosVersion == "" {
-		c.TalosVersion = "v1.13.6"
+		c.TalosVersion = "v1.14.0-beta.1"
 	}
 	if c.Cores == 0 {
 		c.Cores = 4
@@ -400,9 +400,10 @@ func ClusterDocuments(config Config) []map[string]any {
 	config = config.withDefaults()
 
 	clusterPatches := []map[string]any{
-		{"file": "omni/patches/cni-none.yaml"},
-		{"file": "omni/patches/disable-kube-proxy.yaml"},
+		{"name": "cni-none", "inline": map[string]any{"cluster": map[string]any{"network": map[string]any{"cni": map[string]any{"name": "none"}}}}},
+		{"name": "disable-kube-proxy", "inline": map[string]any{"cluster": map[string]any{"proxy": map[string]any{"disabled": true}}}},
 		{"file": "omni/patches/inline-manifests.yaml"},
+		{"name": "image-cache", "inline": map[string]any{"apiVersion": "v1alpha1", "kind": "ImageCacheConfig", "local": map[string]any{"enabled": true}}},
 	}
 	docs := []map[string]any{
 		{
