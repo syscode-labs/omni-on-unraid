@@ -7,18 +7,19 @@
     "kubectl",
     "kustomize",
     "sops",
+    "yq-go",
     "path:.#omnictl"
   ],
   "shell": {
     "scripts": {
       "test": "go test ./...",
-      "render:machineclass": "go run ./cmd/omni-render machineclass --output generated/machineclass.yaml",
-      "render:cluster": "go run ./cmd/omni-render cluster --output generated/cluster.yaml",
+      "render:machineclass": "eval \"$(./scripts/resolve-cluster-versions.sh unraid-lab)\" && go run ./cmd/omni-render machineclass --output generated/machineclass.yaml --talos-version \"$TALOS_VERSION\"",
+      "render:cluster": "eval \"$(./scripts/resolve-cluster-versions.sh unraid-lab)\" && go run ./cmd/omni-render cluster --output generated/cluster.yaml --cluster-name unraid-lab --talos-version \"$TALOS_VERSION\" --kubernetes-version \"$KUBERNETES_VERSION\"",
       "render:pocketid-oidc": "go run ./cmd/omni-render pocketid-oidc-sql --output generated/pocket-id-omni-oidc-client.sql",
       "provider:apply": "omnictl apply -f omni/provider/infra-provider.yaml && go run ./cmd/omni-render provider-config --output generated/provider/libvirt-config.yaml && docker compose -f omni/provider/docker-compose.yml --env-file .env up -d",
       "provider:status": "docker compose -f omni/provider/docker-compose.yml --env-file .env ps",
       "machineclass:apply": "omnictl apply -f omni/machine-classes/control-plane.yaml && omnictl apply -f omni/machine-classes/worker.yaml",
-      "cluster:apply": "omnictl cluster template validate --allowed-dir \"$PWD/omni\" -f omni/cluster-templates/unraid-lab.yaml && omnictl cluster template sync --dry-run --allowed-dir \"$PWD/omni\" -f omni/cluster-templates/unraid-lab.yaml && omnictl cluster template sync --allowed-dir \"$PWD/omni\" -f omni/cluster-templates/unraid-lab.yaml --verbose",
+      "cluster:apply": "devbox run render:cluster && omnictl cluster template validate --allowed-dir \"$PWD/omni\" -f generated/cluster.yaml && omnictl cluster template sync --dry-run --allowed-dir \"$PWD/omni\" -f generated/cluster.yaml && omnictl cluster template sync --allowed-dir \"$PWD/omni\" -f generated/cluster.yaml --verbose",
       "talos:generate-manifests": "./omni/scripts/generate-manifests.sh"
     }
   }
