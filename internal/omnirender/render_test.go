@@ -154,6 +154,33 @@ func TestClusterOmitsMinorGatedPatchesForOtherTalosMinor(t *testing.T) {
 	}
 }
 
+func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
+	// omni/patches/ is a flat directory shared with other cluster templates
+	// (e.g. allow-scheduling.yaml, inline-manifests-management.yaml belong
+	// to homelab-management, not unraid-lab). The base patch set must stay
+	// explicit rather than a directory glob, or unraid-lab would silently
+	// pick up patches that were never part of its rendered set.
+	docs, err := ClusterDocuments(Config{TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+
+	clusterPatches := docs[0]["patches"].([]map[string]any)
+	want := []string{
+		"omni/patches/cni-none.yaml",
+		"omni/patches/disable-kube-proxy.yaml",
+		"omni/patches/inline-manifests.yaml",
+	}
+	if len(clusterPatches) != len(want) {
+		t.Fatalf("v1.13 cluster patches = %v, want exactly %v", clusterPatches, want)
+	}
+	for i, w := range want {
+		if got := clusterPatches[i]["file"]; got != w {
+			t.Fatalf("patch[%d] = %v, want %q", i, got, w)
+		}
+	}
+}
+
 func TestClusterIncludesMinorGatedPatchesForMatchingTalosMinor(t *testing.T) {
 	docs, err := ClusterDocuments(Config{TalosVersion: "v1.14.0", KubernetesVersion: "v1.36.3"})
 	if err != nil {

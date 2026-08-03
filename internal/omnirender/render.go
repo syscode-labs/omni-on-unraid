@@ -467,13 +467,22 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 	return docs, nil
 }
 
-// clusterPatchFiles globs cluster patch files for the given Talos version:
-// everything directly in patchesBaseDir (applies to every Talos minor) plus
-// everything directly in patchesBaseDir/<minor> (applies only when the
-// target Talos minor matches), so a Talos-1.14-only patch can never be
-// emitted into a cluster targeting a different minor. Results are sorted
-// for deterministic output.
+// clusterPatchFiles returns unraid-lab's base cluster patches (explicit, not
+// globbed — omni/patches/ is a flat directory shared with other cluster
+// templates, e.g. allow-scheduling.yaml and inline-manifests-management.yaml
+// belong to the homelab-management template, not this cluster, so globbing
+// the whole directory would silently widen what unraid-lab applies) plus
+// everything directly in omni/patches/<minor> for the given Talos version
+// (applies only when the target Talos minor matches, so a Talos-1.14-only
+// patch can never be emitted into a cluster targeting a different minor).
+// Minor-dir results are sorted for deterministic output.
 const patchesBaseDir = "omni/patches"
+
+var baseClusterPatchFiles = []string{
+	"omni/patches/cni-none.yaml",
+	"omni/patches/disable-kube-proxy.yaml",
+	"omni/patches/inline-manifests.yaml",
+}
 
 func clusterPatchFiles(talosVersion string) ([]map[string]any, error) {
 	minor, err := talosMinor(talosVersion)
@@ -481,16 +490,13 @@ func clusterPatchFiles(talosVersion string) ([]map[string]any, error) {
 		return nil, err
 	}
 
-	files, err := globPatchFiles(patchesBaseDir)
-	if err != nil {
-		return nil, err
-	}
 	minorFiles, err := globPatchFiles(filepath.Join(patchesBaseDir, minor))
 	if err != nil {
 		return nil, err
 	}
-	files = append(files, minorFiles...)
-	sort.Strings(files)
+	sort.Strings(minorFiles)
+
+	files := append(append([]string{}, baseClusterPatchFiles...), minorFiles...)
 
 	patches := make([]map[string]any, 0, len(files))
 	for _, file := range files {
