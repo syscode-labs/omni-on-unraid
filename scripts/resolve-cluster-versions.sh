@@ -14,12 +14,31 @@ versions_url="${VERSIONS_YAML_URL:-https://raw.githubusercontent.com/syscode-lab
 
 versions_yaml="$(curl -fsSL "$versions_url")"
 
-talos_version="$(printf '%s' "$versions_yaml" | yq eval ".clusters.${cluster_name}.talos // .talos" -)"
-kubernetes_version="$(printf '%s' "$versions_yaml" | yq eval ".clusters.${cluster_name}.kubernetes // .kubernetes" -)"
+global_talos="$(printf '%s' "$versions_yaml" | yq eval '.talos // ""' -)"
+cluster_talos="$(printf '%s' "$versions_yaml" | yq eval ".clusters.${cluster_name}.talos // \"\"" -)"
+cluster_k8s="$(printf '%s' "$versions_yaml" | yq eval ".clusters.${cluster_name}.kubernetes // \"\"" -)"
+
+talos_version="${cluster_talos:-$global_talos}"
 
 if [ -z "$talos_version" ] || [ "$talos_version" = "null" ]; then
   echo "resolve-cluster-versions: no talos version resolved for cluster '${cluster_name}'" >&2
   exit 1
+fi
+
+# Kubernetes is never inherited across a diverging Talos target: the global
+# kubernetes pin belongs to the global Talos minor, so carrying it onto a
+# cluster pinned to a different Talos is the drift this file exists to stop.
+# Matches scripts/check-version-drift.py in syscode-homelab-gitops-apps.
+if [ -n "$cluster_k8s" ] && [ "$cluster_k8s" != "null" ]; then
+  kubernetes_version="$cluster_k8s"
+elif [ -n "$cluster_talos" ] && [ "$cluster_talos" != "$global_talos" ]; then
+  echo "resolve-cluster-versions: cluster '${cluster_name}' pins talos ${cluster_talos}" >&2
+  echo "  but the global pin is ${global_talos} and no kubernetes override is set." >&2
+  echo "  Derive the Kubernetes version for ${cluster_talos} and pin it explicitly" >&2
+  echo "  under clusters.${cluster_name}.kubernetes in versions.yaml." >&2
+  exit 1
+else
+  kubernetes_version="$(printf '%s' "$versions_yaml" | yq eval '.kubernetes // ""' -)"
 fi
 if [ -z "$kubernetes_version" ] || [ "$kubernetes_version" = "null" ]; then
   echo "resolve-cluster-versions: no kubernetes version resolved for cluster '${cluster_name}'" >&2
