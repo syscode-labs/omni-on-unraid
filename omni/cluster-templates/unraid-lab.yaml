@@ -1,7 +1,7 @@
 kind: Cluster
 name: unraid-lab
 kubernetes:
-  version: v1.37.0
+  version: v1.36.3
 talos:
   version: v1.13.7
 features:
@@ -10,8 +10,6 @@ patches:
   - file: omni/patches/cni-none.yaml
   - file: omni/patches/disable-kube-proxy.yaml
   - file: omni/patches/inline-manifests.yaml
-  - file: omni/patches/image-cache.yaml
-  - file: omni/patches/workload-isolation.yaml
 ---
 kind: ControlPlane
 machineClass:

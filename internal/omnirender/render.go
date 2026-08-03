@@ -51,7 +51,7 @@ func (c Config) withDefaults() Config {
 		c.ControlPlanes = 3
 	}
 	if c.KubernetesVersion == "" {
-		c.KubernetesVersion = "v1.37.0"
+		c.KubernetesVersion = "v1.36.3"
 	}
 	if c.TalosVersion == "" {
 		c.TalosVersion = "v1.13.7"
@@ -403,7 +403,6 @@ func ClusterDocuments(config Config) []map[string]any {
 		{"name": "cni-none", "inline": map[string]any{"cluster": map[string]any{"network": map[string]any{"cni": map[string]any{"name": "none"}}}}},
 		{"name": "disable-kube-proxy", "inline": map[string]any{"cluster": map[string]any{"proxy": map[string]any{"disabled": true}}}},
 		{"file": "omni/patches/inline-manifests.yaml"},
-		{"name": "image-cache", "inline": map[string]any{"apiVersion": "v1alpha1", "kind": "ImageCacheConfig", "local": map[string]any{"enabled": true}}},
 	}
 	docs := []map[string]any{
 		{
