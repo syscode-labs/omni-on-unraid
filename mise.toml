@@ -175,8 +175,10 @@ run = "docker compose -f omni/image-factory/docker-compose.yml --env-file .env d
 description = "Render Omni dynamic libvirt MachineClasses"
 run = '''
 set -euo pipefail
-go run ./cmd/omni-render machineclass --output generated/machineclass-control-plane.yaml --machine-class unraid-cp
-go run ./cmd/omni-render machineclass --output generated/machineclass-worker.yaml --machine-class unraid-worker
+cluster_name="${CLUSTER_NAME:-unraid-lab}"
+eval "$(./scripts/resolve-cluster-versions.sh "$cluster_name")"
+go run ./cmd/omni-render machineclass --output generated/machineclass-control-plane.yaml --machine-class unraid-cp --talos-version "$TALOS_VERSION"
+go run ./cmd/omni-render machineclass --output generated/machineclass-worker.yaml --machine-class unraid-worker --talos-version "$TALOS_VERSION"
 '''
 
 [tasks."omni:machineclass:apply"]
@@ -189,7 +191,12 @@ omnictl apply -f generated/machineclass-worker.yaml
 
 [tasks."omni:cluster:render"]
 description = "Render Omni cluster template using dynamic machine allocation"
-run = "go run ./cmd/omni-render cluster --output generated/cluster.yaml --machine-class unraid-cp"
+run = '''
+set -euo pipefail
+cluster_name="${CLUSTER_NAME:-unraid-lab}"
+eval "$(./scripts/resolve-cluster-versions.sh "$cluster_name")"
+go run ./cmd/omni-render cluster --output generated/cluster.yaml --machine-class unraid-cp --cluster-name "$cluster_name" --talos-version "$TALOS_VERSION" --kubernetes-version "$KUBERNETES_VERSION"
+'''
 
 [tasks."omni:bootstrap-secrets"]
 description = "Store the Tailscale OAuth secret in Omni before cluster provisioning"

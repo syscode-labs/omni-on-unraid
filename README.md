@@ -51,7 +51,9 @@ Releases are CI-driven with Release Please and GoReleaser. Use Conventional
 Commits (`fix:`, `feat:`, `feat!:`) to drive patch/minor/major release PRs.
 Release and packaging details: `docs/packaging.md`.
 
-Default cluster shape is in `omni/cluster-templates/unraid-lab.yaml`: three
+Default cluster shape is rendered by `internal/omnirender/render.go`
+(`ClusterDocuments`) into `generated/cluster.yaml`, which `mise run
+omni:cluster:render` / `omni:cluster:apply` feed to `omnictl`: three
 schedulable control-plane nodes, no workers. UI-selectable MachineClasses live
 in `omni/machine-classes/` as `unraid-cp` and `unraid-worker`.
 

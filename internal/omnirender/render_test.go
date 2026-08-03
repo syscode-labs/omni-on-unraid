@@ -8,20 +8,24 @@ import (
 )
 
 func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
-	docs := MachineClassDocuments(Config{
+	docs, err := MachineClassDocuments(Config{
 		MachineClass: "lab",
 		ProviderID:   "libvirt",
 		StoragePool:  "omni-domains",
 		NetworkName:  "default",
+		TalosVersion: "v1.13.7",
 	})
+	if err != nil {
+		t.Fatalf("MachineClassDocuments returned error: %v", err)
+	}
 
 	if got := docs[0]["metadata"].(map[string]any)["id"]; got != "lab" {
 		t.Fatalf("machine class id = %v, want lab", got)
 	}
 
 	spec := docs[0]["spec"].(map[string]any)
-	if got := spec["installImage"]; got != "ghcr.io/syscode-labs/talos-images/installer:v1.13.6-libvirt" {
-		t.Fatalf("installImage = %v, want installer:v1.13.6-libvirt", got)
+	if got := spec["installImage"]; got != "ghcr.io/syscode-labs/talos-images/installer:v1.13.7-libvirt" {
+		t.Fatalf("installImage = %v, want installer:v1.13.7-libvirt", got)
 	}
 	autoprovision := spec["autoprovision"].(map[string]any)
 	if got := autoprovision["providerid"]; got != "libvirt" {
@@ -46,10 +50,15 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 }
 
 func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
-	docs := ClusterDocuments(Config{
-		ClusterName:  "lab",
-		MachineClass: "lab",
+	docs, err := ClusterDocuments(Config{
+		ClusterName:       "lab",
+		MachineClass:      "lab",
+		TalosVersion:      "v1.13.7",
+		KubernetesVersion: "v1.36.3",
 	})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
 
 	if got := docs[0]["kind"]; got != "Cluster" {
 		t.Fatalf("first doc kind = %v, want Cluster", got)
@@ -108,7 +117,10 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 func TestClusterEmitsNoTailscaleAuthPatch(t *testing.T) {
 	// Early tailscale is gone: nodes reach tailnet-only Omni via the bookofshadows
 	// subnet route, so no ExtensionServiceConfig auth patch is ever rendered.
-	docs := ClusterDocuments(Config{})
+	docs, err := ClusterDocuments(Config{TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
 
 	for _, patch := range docs[0]["patches"].([]map[string]any) {
 		if patch["name"] == "tailscale-auth" {
@@ -117,8 +129,86 @@ func TestClusterEmitsNoTailscaleAuthPatch(t *testing.T) {
 	}
 }
 
+func TestClusterRequiresTalosAndKubernetesVersions(t *testing.T) {
+	if _, err := ClusterDocuments(Config{}); err == nil {
+		t.Fatal("ClusterDocuments with no versions set should return an error, got nil")
+	}
+	if _, err := ClusterDocuments(Config{TalosVersion: "v1.13.7"}); err == nil {
+		t.Fatal("ClusterDocuments with no kubernetes version should return an error, got nil")
+	}
+	if _, err := MachineClassDocuments(Config{}); err == nil {
+		t.Fatal("MachineClassDocuments with no talos version should return an error, got nil")
+	}
+}
+
+func TestClusterOmitsMinorGatedPatchesForOtherTalosMinor(t *testing.T) {
+	docs, err := ClusterDocuments(Config{TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+
+	for _, patch := range docs[0]["patches"].([]map[string]any) {
+		if file, ok := patch["file"].(string); ok && strings.Contains(file, "/1.14/") {
+			t.Fatalf("v1.13 cluster must not receive a 1.14-only patch: %v", patch)
+		}
+	}
+}
+
+func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
+	// omni/patches/ is a flat directory shared with other cluster templates
+	// (e.g. allow-scheduling.yaml, inline-manifests-management.yaml belong
+	// to homelab-management, not unraid-lab). The base patch set must stay
+	// explicit rather than a directory glob, or unraid-lab would silently
+	// pick up patches that were never part of its rendered set.
+	docs, err := ClusterDocuments(Config{TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+
+	clusterPatches := docs[0]["patches"].([]map[string]any)
+	want := []string{
+		"omni/patches/cni-none.yaml",
+		"omni/patches/disable-kube-proxy.yaml",
+		"omni/patches/inline-manifests.yaml",
+	}
+	if len(clusterPatches) != len(want) {
+		t.Fatalf("v1.13 cluster patches = %v, want exactly %v", clusterPatches, want)
+	}
+	for i, w := range want {
+		if got := clusterPatches[i]["file"]; got != w {
+			t.Fatalf("patch[%d] = %v, want %q", i, got, w)
+		}
+	}
+}
+
+func TestClusterIncludesMinorGatedPatchesForMatchingTalosMinor(t *testing.T) {
+	docs, err := ClusterDocuments(Config{TalosVersion: "v1.14.0", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+
+	for _, want := range []string{
+		"omni/patches/1.14/image-cache.yaml",
+		"omni/patches/1.14/workload-isolation.yaml",
+	} {
+		found := false
+		for _, patch := range docs[0]["patches"].([]map[string]any) {
+			if patch["file"] == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("v1.14 cluster missing minor-gated patch %q", want)
+		}
+	}
+}
+
 func TestClusterAddsWorkersWhenRequested(t *testing.T) {
-	docs := ClusterDocuments(Config{Workers: 2})
+	docs, err := ClusterDocuments(Config{Workers: 2, TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
 
 	workers := docs[2]
 	if got := workers["kind"]; got != "Workers" {
@@ -136,7 +226,11 @@ func TestClusterAddsWorkersWhenRequested(t *testing.T) {
 func TestWriteYAMLUsesMultiDocumentOutput(t *testing.T) {
 	var out strings.Builder
 
-	if err := WriteYAML(&out, ClusterDocuments(Config{ClusterName: "lab"})); err != nil {
+	docs, err := ClusterDocuments(Config{ClusterName: "lab", TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+	if err := WriteYAML(&out, docs); err != nil {
 		t.Fatalf("WriteYAML returned error: %v", err)
 	}
 

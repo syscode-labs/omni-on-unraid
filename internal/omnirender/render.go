@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -49,12 +50,6 @@ func (c Config) withDefaults() Config {
 	}
 	if c.ControlPlanes == 0 {
 		c.ControlPlanes = 3
-	}
-	if c.KubernetesVersion == "" {
-		c.KubernetesVersion = "v1.37.0"
-	}
-	if c.TalosVersion == "" {
-		c.TalosVersion = "v1.13.7"
 	}
 	if c.Cores == 0 {
 		c.Cores = 4
@@ -375,8 +370,23 @@ func sqlQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
-func MachineClassDocuments(config Config) []map[string]any {
+// requireVersion fails loudly rather than let a caller silently fall back to
+// a stale hardcoded default (the bug class this function exists to remove):
+// versions must come from versions.yaml in syscode-homelab-gitops-apps, via
+// --talos-version / --kubernetes-version.
+func requireVersion(label, flag, value string) error {
+	if value == "" {
+		return fmt.Errorf("%s is required (no default; resolve it from versions.yaml and pass --%s)", label, flag)
+	}
+
+	return nil
+}
+
+func MachineClassDocuments(config Config) ([]map[string]any, error) {
 	config = config.withDefaults()
+	if err := requireVersion("talos version", "talos-version", config.TalosVersion); err != nil {
+		return nil, err
+	}
 
 	return []map[string]any{
 		{
@@ -393,17 +403,21 @@ func MachineClassDocuments(config Config) []map[string]any {
 				},
 			},
 		},
-	}
+	}, nil
 }
 
-func ClusterDocuments(config Config) []map[string]any {
+func ClusterDocuments(config Config) ([]map[string]any, error) {
 	config = config.withDefaults()
+	if err := requireVersion("talos version", "talos-version", config.TalosVersion); err != nil {
+		return nil, err
+	}
+	if err := requireVersion("kubernetes version", "kubernetes-version", config.KubernetesVersion); err != nil {
+		return nil, err
+	}
 
-	clusterPatches := []map[string]any{
-		{"name": "cni-none", "inline": map[string]any{"cluster": map[string]any{"network": map[string]any{"cni": map[string]any{"name": "none"}}}}},
-		{"name": "disable-kube-proxy", "inline": map[string]any{"cluster": map[string]any{"proxy": map[string]any{"disabled": true}}}},
-		{"file": "omni/patches/inline-manifests.yaml"},
-		{"name": "image-cache", "inline": map[string]any{"apiVersion": "v1alpha1", "kind": "ImageCacheConfig", "local": map[string]any{"enabled": true}}},
+	clusterPatches, err := clusterPatchFiles(config.TalosVersion)
+	if err != nil {
+		return nil, err
 	}
 	docs := []map[string]any{
 		{
@@ -450,7 +464,88 @@ func ClusterDocuments(config Config) []map[string]any {
 		})
 	}
 
-	return docs
+	return docs, nil
+}
+
+// clusterPatchFiles returns unraid-lab's base cluster patches (explicit, not
+// globbed — omni/patches/ is a flat directory shared with other cluster
+// templates, e.g. allow-scheduling.yaml and inline-manifests-management.yaml
+// belong to the homelab-management template, not this cluster, so globbing
+// the whole directory would silently widen what unraid-lab applies) plus
+// everything directly in omni/patches/<minor> for the given Talos version
+// (applies only when the target Talos minor matches, so a Talos-1.14-only
+// patch can never be emitted into a cluster targeting a different minor).
+// Minor-dir results are sorted for deterministic output.
+const patchesBaseDir = "omni/patches"
+
+var baseClusterPatchFiles = []string{
+	"omni/patches/cni-none.yaml",
+	"omni/patches/disable-kube-proxy.yaml",
+	"omni/patches/inline-manifests.yaml",
+}
+
+func clusterPatchFiles(talosVersion string) ([]map[string]any, error) {
+	minor, err := talosMinor(talosVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	minorFiles, err := globPatchFiles(filepath.Join(patchesBaseDir, minor))
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(minorFiles)
+
+	files := append(append([]string{}, baseClusterPatchFiles...), minorFiles...)
+
+	patches := make([]map[string]any, 0, len(files))
+	for _, file := range files {
+		patches = append(patches, map[string]any{"file": file})
+	}
+
+	return patches, nil
+}
+
+// moduleRoot is the repo root, derived from this source file's own path so
+// patch globbing works regardless of the caller's working directory (`go
+// run` from the repo root vs. `go test` from this package's directory).
+var moduleRoot = func() string {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return "."
+	}
+
+	return filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))
+}()
+
+func globPatchFiles(relDir string) ([]string, error) {
+	matches, err := filepath.Glob(filepath.Join(moduleRoot, relDir, "*.yaml"))
+	if err != nil {
+		return nil, fmt.Errorf("glob %s: %w", relDir, err)
+	}
+
+	relMatches := make([]string, 0, len(matches))
+	for _, match := range matches {
+		rel, err := filepath.Rel(moduleRoot, match)
+		if err != nil {
+			return nil, fmt.Errorf("rel %s: %w", match, err)
+		}
+		relMatches = append(relMatches, filepath.ToSlash(rel))
+	}
+
+	return relMatches, nil
+}
+
+// talosMinor derives "1.14" from "v1.14.0" so minor-gated patch dirs
+// (omni/patches/1.14/) can be matched against a target Talos version.
+func talosMinor(version string) (string, error) {
+	trimmed := strings.TrimPrefix(version, "v")
+	parts := strings.SplitN(trimmed, ".", 3)
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", fmt.Errorf("cannot derive Talos minor from version %q", version)
+	}
+
+	return parts[0] + "." + parts[1], nil
 }
 
 func WriteYAML(writer io.Writer, docs []map[string]any) error {
