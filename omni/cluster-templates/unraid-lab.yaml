@@ -3,7 +3,7 @@ name: unraid-lab
 kubernetes:
   version: v1.37.0
 talos:
-  version: v1.14.0-beta.1
+  version: v1.13.7
 features:
   diskEncryption: false
 patches:
