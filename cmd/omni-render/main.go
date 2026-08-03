@@ -62,11 +62,12 @@ func run() error {
 	}
 
 	var docs []map[string]any
+	var err error
 	switch command {
 	case "machineclass":
-		docs = omnirender.MachineClassDocuments(config)
+		docs, err = omnirender.MachineClassDocuments(config)
 	case "cluster":
-		docs = omnirender.ClusterDocuments(config)
+		docs, err = omnirender.ClusterDocuments(config)
 	case "pocketid-oidc-sql":
 		sql, err := omnirender.PocketIDOIDCClientSQL(config)
 		if err != nil {
@@ -80,6 +81,9 @@ func run() error {
 		return omnirender.ImageFactoryConfig(*output, config)
 	default:
 		return fmt.Errorf("unknown command: %s", command)
+	}
+	if err != nil {
+		return err
 	}
 
 	file, err := os.Create(*output)
