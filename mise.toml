@@ -206,8 +206,14 @@ run = "./omni/scripts/inject-tailscale-oauth.sh"
 description = "Validate, sync, and wait on Omni cluster template"
 depends = ["omni:version-check", "omni:bootstrap-secrets", "omni:cluster:render"]
 run = '''
-omnictl cluster template validate -f generated/cluster.yaml
-omnictl cluster template sync -f generated/cluster.yaml --verbose
+# --allowed-dir scopes which files omnictl may read patch refs from.
+# The dry-run rehearsal is the last cheap gate before machines are touched:
+# it surfaces a rejected document (a version-incompatible patch, say) without
+# applying anything. devbox's cluster:apply has always carried both; this task
+# did not, so the two paths differed in safety as well as in source.
+omnictl cluster template validate --allowed-dir "$PWD/omni" -f generated/cluster.yaml
+omnictl cluster template sync --dry-run --allowed-dir "$PWD/omni" -f generated/cluster.yaml
+omnictl cluster template sync --allowed-dir "$PWD/omni" -f generated/cluster.yaml --verbose
 omnictl cluster template status -f generated/cluster.yaml
 '''
 
