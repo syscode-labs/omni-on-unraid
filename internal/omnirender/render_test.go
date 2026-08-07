@@ -155,11 +155,9 @@ func TestClusterOmitsMinorGatedPatchesForOtherTalosMinor(t *testing.T) {
 }
 
 func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
-	// omni/patches/ is a flat directory shared with other cluster templates
-	// (e.g. allow-scheduling.yaml, inline-manifests-management.yaml belong
-	// to homelab-management, not unraid-lab). The base patch set must stay
-	// explicit rather than a directory glob, or unraid-lab would silently
-	// pick up patches that were never part of its rendered set.
+	// omni/patches/ is a flat directory shared with other consumers. The base
+	// patch set must stay explicit rather than a directory glob, or unraid-lab
+	// would silently pick up patches that were never part of its rendered set.
 	docs, err := ClusterDocuments(Config{TalosVersion: "v1.13.7", KubernetesVersion: "v1.36.3"})
 	if err != nil {
 		t.Fatalf("ClusterDocuments returned error: %v", err)

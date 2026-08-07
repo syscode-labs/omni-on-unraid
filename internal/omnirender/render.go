@@ -468,10 +468,8 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 }
 
 // clusterPatchFiles returns unraid-lab's base cluster patches (explicit, not
-// globbed — omni/patches/ is a flat directory shared with other cluster
-// templates, e.g. allow-scheduling.yaml and inline-manifests-management.yaml
-// belong to the homelab-management template, not this cluster, so globbing
-// the whole directory would silently widen what unraid-lab applies) plus
+// globbed — omni/patches/ is a flat directory shared with other consumers, so
+// globbing it would silently widen what unraid-lab applies) plus
 // everything directly in omni/patches/<minor> for the given Talos version
 // (applies only when the target Talos minor matches, so a Talos-1.14-only
 // patch can never be emitted into a cluster targeting a different minor).
