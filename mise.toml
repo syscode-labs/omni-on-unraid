@@ -211,9 +211,12 @@ run = '''
 # it surfaces a rejected document (a version-incompatible patch, say) without
 # applying anything. devbox's cluster:apply has always carried both; this task
 # did not, so the two paths differed in safety as well as in source.
-omnictl cluster template validate --allowed-dir "$PWD/omni" -f generated/cluster.yaml
-omnictl cluster template sync --dry-run --allowed-dir "$PWD/omni" -f generated/cluster.yaml
-omnictl cluster template sync --allowed-dir "$PWD/omni" -f generated/cluster.yaml --verbose
+# omnictl v1.9.3 resolves patch `file:` paths relative to the template file's
+# parent dir (generated/), not the CWD — so the patch refs under omni/ need that
+# dir allowed too, else validate/sync fail with "path escapes from parent".
+omnictl cluster template validate --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
+omnictl cluster template sync --dry-run --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
+omnictl cluster template sync --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml --verbose
 omnictl cluster template status -f generated/cluster.yaml
 '''
 
