@@ -1,5 +1,10 @@
 # omni-on-unraid
 
+[![CI](https://github.com/syscode-labs/omni-on-unraid/actions/workflows/ci.yml/badge.svg)](https://github.com/syscode-labs/omni-on-unraid/actions/workflows/ci.yml)
+[![Release Please](https://github.com/syscode-labs/omni-on-unraid/actions/workflows/release-please.yml/badge.svg)](https://github.com/syscode-labs/omni-on-unraid/actions/workflows/release-please.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/syscode-labs/omni-on-unraid)](go.mod)
+[![Latest Release](https://img.shields.io/github/v/release/syscode-labs/omni-on-unraid)](https://github.com/syscode-labs/omni-on-unraid/releases)
+
 Self-hosted Omni control plane on Unraid for declarative Talos cluster lifecycle.
 
 ## Talos Cluster Provisioning Through Omni
