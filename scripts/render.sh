@@ -13,7 +13,7 @@ fi
 OMNI_VERSION="${OMNI_VERSION:-v1.5.8}"
 mkdir -p "$OUT_DIR"
 
-base_url="https://raw.githubusercontent.com/siderolabs/omni/${OMNI_VERSION}/deploy"
+base_url="https://raw.githubusercontent.com/siderolabs/omni/${OMNI_VERSION}/deploy/compose"
 
 curl -fsSL "${base_url}/compose.yaml" -o "${OUT_DIR}/compose.yaml"
 curl -fsSL "${base_url}/env.template" -o "${OUT_DIR}/upstream.env.template"
