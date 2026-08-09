@@ -1,7 +1,7 @@
 [tools]
 terraform = "1.9.8"
 go = "1.25.8"
-omnictl = "1.9.3"
+omnictl = "1.10.0"
 kubectl = "1.34.2"
 kustomize = "5.7.1"
 yq = "4.53.3"
@@ -214,6 +214,12 @@ run = '''
 # omnictl v1.9.3 resolves patch `file:` paths relative to the template file's
 # parent dir (generated/), not the CWD — so the patch refs under omni/ need that
 # dir allowed too, else validate/sync fail with "path escapes from parent".
+# Reconcile first: purge cluster members Omni is tearing down but can no longer
+# reach (maintenance deadlock), and fail loudly if any machine set still hashes
+# empty config. This runs *after* render so CLUSTER_NAME is resolved, before the
+# template sync touches the cluster.
+reconcile_cluster="${CLUSTER_NAME:-unraid-lab}"
+./scripts/reconcile-cluster-machines.sh "$reconcile_cluster"
 omnictl cluster template validate --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
 omnictl cluster template sync --dry-run --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
 omnictl cluster template sync --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml --verbose
