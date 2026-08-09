@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/syscode-labs/omni-on-unraid/compare/v0.2.0...v0.2.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **compose:** emit SQLITE_STORAGE_PATH alongside SECONDARY_STORAGE_PATH ([53b4906](https://github.com/syscode-labs/omni-on-unraid/commit/53b4906dc5ff374243f50720932cbd976051dcd0))
+* **omni:** auto-evict stuck cluster members before sync ([7b41831](https://github.com/syscode-labs/omni-on-unraid/commit/7b41831a7e4453738021873573d58d65cce938cb))
+* **render:** update upstream Omni compose base URL ([07543de](https://github.com/syscode-labs/omni-on-unraid/commit/07543de8fbe7d1bc8a878455fa8db0f9a3668e25))
+
 ## [0.2.0](https://github.com/syscode-labs/omni-on-unraid/compare/v0.1.0...v0.2.0) (2026-08-07)
 
 
