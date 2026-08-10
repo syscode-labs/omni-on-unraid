@@ -74,6 +74,7 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 		"omni/patches/cni-none.yaml",
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
+		"omni/patches/harbor-registry-mirror.yaml",
 	} {
 		found := false
 		for _, patch := range clusterPatches {
@@ -168,6 +169,7 @@ func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
 		"omni/patches/cni-none.yaml",
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
+		"omni/patches/harbor-registry-mirror.yaml",
 	}
 	if len(clusterPatches) != len(want) {
 		t.Fatalf("v1.13 cluster patches = %v, want exactly %v", clusterPatches, want)
@@ -402,8 +404,15 @@ func TestImageFactoryConfigEmitsReplacementExtensionManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile image-factory config: %v", err)
 	}
-	if !strings.Contains(string(configYAML), "extensionCatalog:\n  sources:\n    - name: firecracker\n      manifest:\n        registry: 127.0.0.1:5000\n        namespace: custom-image-factory\n        repository: syscode-labs/talos-extensions-composite") {
+	config := string(configYAML)
+	if !strings.Contains(config, "extensionCatalog:\n  sources:\n    - name: firecracker\n      manifest:\n        registry: 127.0.0.1:5000\n        namespace: custom-image-factory\n        repository: syscode-labs/talos-extensions-composite") {
 		t.Fatalf("image-factory config missing replacement extension manifest:\n%s", configYAML)
+	}
+	if strings.Index(config, "artifacts:\n  core:\n    registry: ghcr.io\n  schematic:") > strings.Index(config, "extensionCatalog:") {
+		t.Fatalf("artifacts.schematic must not be nested under extensionCatalog:\n%s", config)
+	}
+	if !strings.Contains(config, "artifacts:\n  core:\n    registry: ghcr.io\n  schematic:\n    registry: 127.0.0.1:5000") {
+		t.Fatalf("image-factory config missing top-level artifacts.schematic:\n%s", config)
 	}
 }
 

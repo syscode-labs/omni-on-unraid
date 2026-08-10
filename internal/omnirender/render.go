@@ -290,7 +290,7 @@ func ImageFactoryConfig(outputPath string, config Config) error {
 	configYAML := fmt.Sprintf(`artifacts:
   core:
     registry: %s
-%s  schematic:
+  schematic:
     registry: %s
     namespace: %s
     repository: schematics
@@ -299,7 +299,8 @@ func ImageFactoryConfig(outputPath string, config Config) error {
     internal:
       registry: %s
       namespace: %s
-      repository: installer-internal
+    repository: installer-internal
+%s
 %s
 %s
 cache:
@@ -313,7 +314,7 @@ http:
   externalURL: %s
 metrics:
   addr: ""
-`, config.ImageFactoryCoreRegistry, extensionManifest, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, containerSignature, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
+`, config.ImageFactoryCoreRegistry, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, containerSignature, extensionManifest, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
 
 	return os.WriteFile(outputPath, []byte(configYAML), 0o600)
 }
@@ -528,6 +529,7 @@ var baseClusterPatchFiles = []string{
 	"omni/patches/cni-none.yaml",
 	"omni/patches/disable-kube-proxy.yaml",
 	"omni/patches/inline-manifests.yaml",
+	"omni/patches/harbor-registry-mirror.yaml",
 }
 
 func clusterPatchFiles(talosVersion string) ([]map[string]any, error) {
