@@ -83,6 +83,26 @@ if [ -z "${TF_VAR_network_bridge:-}" ]; then
   fi
 fi
 
+if [ -z "${TF_VAR_provider_network_name:-}" ] && [ -n "${OMNI_PROVIDER_NETWORK_NAME:-}" ]; then
+  export TF_VAR_provider_network_name="$OMNI_PROVIDER_NETWORK_NAME"
+fi
+
+if [ -z "${TF_VAR_provider_nic_mac:-}" ] && [ -n "${OMNI_PROVIDER_NIC_MAC:-}" ]; then
+  export TF_VAR_provider_nic_mac="$OMNI_PROVIDER_NIC_MAC"
+fi
+
+if [ -z "${TF_VAR_provider_network_subnet:-}" ] && [ -n "${OMNI_PROVIDER_NETWORK_SUBNET:-}" ]; then
+  export TF_VAR_provider_network_subnet="$OMNI_PROVIDER_NETWORK_SUBNET"
+fi
+
+if [ -z "${TF_VAR_provider_route_metric:-}" ] && [ -n "${OMNI_PROVIDER_ROUTE_METRIC:-}" ]; then
+  export TF_VAR_provider_route_metric="$OMNI_PROVIDER_ROUTE_METRIC"
+fi
+
+if [ -z "${TF_VAR_provider_policy_priority:-}" ] && [ -n "${OMNI_PROVIDER_POLICY_PRIORITY:-}" ]; then
+  export TF_VAR_provider_policy_priority="$OMNI_PROVIDER_POLICY_PRIORITY"
+fi
+
 if [ -z "${TF_VAR_vm_mac:-}" ]; then
   if [ -n "${OMNI_VM_MAC:-}" ]; then
     export TF_VAR_vm_mac="$OMNI_VM_MAC"
