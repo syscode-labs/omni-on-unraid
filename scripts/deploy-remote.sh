@@ -210,3 +210,8 @@ rsync -az --delete \
 copy_tls_assets_direct "$TARGET" "$REMOTE_DIR"
 
 ssh $BASE_SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ${REMOTE_ENV_PREFIX}./scripts/render.sh && ${REMOTE_ENV_PREFIX}./scripts/up.sh"
+
+if [ "${OMNI_DEPLOY_FACTORY:-1}" = "1" ]; then
+  echo "== Deploying on-prem Image Factory =="
+  OMNI_SSH_TARGET="$TARGET" OMNI_SSH_OPTS="$BASE_SSH_OPTS" "${ROOT_DIR}/scripts/deploy-factory.sh"
+fi

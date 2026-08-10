@@ -1,8 +1,16 @@
 name: omni-image-factory
 
 services:
+  registry:
+    image: registry:2
+    container_name: omni-registry
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - omni-registry-data:/var/lib/registry
+
   image-factory:
-    image: ghcr.io/siderolabs/image-factory:${OMNI_IMAGE_FACTORY_TAG:-latest}
+    image: ghcr.io/siderolabs/image-factory:${OMNI_IMAGE_FACTORY_TAG:-v1.4.0}
     container_name: omni-image-factory
     restart: unless-stopped
     network_mode: host
@@ -16,3 +24,36 @@ services:
     command:
       - --config=/config.yaml
       - --log-level=${OMNI_IMAGE_FACTORY_LOG_LEVEL:-info}
+
+  # Tailnet face of the Image Factory. The host VM already runs one tailscaled
+  # (the `omni` node on the host netns), so this sidecar gets its OWN network
+  # namespace and registers a second node `talos-image-factory`. `tailscale
+  # serve` terminates TLS for talos-image-factory.wind-bearded.ts.net and
+  # proxies to the factory's host-loopback listener (reachable via the host
+  # gateway from this container's netns).
+  tailscale:
+    image: tailscale/tailscale:${OMNI_IMAGE_FACTORY_TS_TAG:-latest}
+    container_name: omni-ts-image-factory
+    restart: unless-stopped
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TS_AUTHKEY: "${OMNI_IMAGE_FACTORY_TS_AUTHKEY:?set OMNI_IMAGE_FACTORY_TS_AUTHKEY}"
+      TS_HOSTNAME: talos-image-factory
+      TS_EXTRA_ARGS: ${TS_ADVERTISE_TAGS:---advertise-tags=tag:image-factory}
+      TS_SERVE_CONFIG: /etc/tailscale/serve.json
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_ACCEPT_DNS: "true"
+      TS_USERSPACE: "false"
+    volumes:
+      - ./serve.json:/etc/tailscale/serve.json:ro
+      - tailscale-state:/var/lib/tailscale
+
+volumes:
+  omni-registry-data:
+  tailscale-state:

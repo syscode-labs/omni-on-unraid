@@ -242,6 +242,9 @@ func TestWriteYAMLUsesMultiDocumentOutput(t *testing.T) {
 }
 
 func TestPocketIDOIDCClientSQLUsesOmniCallbackAndConfidentialClient(t *testing.T) {
+	t.Setenv("OMNI_DOMAIN", "")
+	t.Setenv("OMNI_PUBLIC_DOMAIN", "")
+
 	sql, err := PocketIDOIDCClientSQL(Config{})
 	if err != nil {
 		t.Fatalf("PocketIDOIDCClientSQL returned error: %v", err)
@@ -319,7 +322,6 @@ func TestImageFactoryConfigUsesEnv(t *testing.T) {
 	t.Setenv("OMNI_IMAGE_FACTORY_ADDRESS", "https://factory.example.ts.net")
 	t.Setenv("OMNI_IMAGE_FACTORY_REGISTRY", "registry.example.ts.net:5000")
 	t.Setenv("OMNI_IMAGE_FACTORY_SIGNING_KEY_PATH", "/keys/cache-signing.key")
-	t.Setenv("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH", "/keys/cosign.pub")
 	outputPath := filepath.Join(t.TempDir(), "generated", "image-factory", "config.yaml")
 
 	if err := ImageFactoryConfig(outputPath, Config{}); err != nil {
@@ -332,18 +334,105 @@ func TestImageFactoryConfigUsesEnv(t *testing.T) {
 	}
 	config := string(configYAML)
 	for _, want := range []string{
+		"core:\n    registry: ghcr.io",
 		"registry: registry.example.ts.net:5000",
 		"namespace: syscode-labs/image-factory",
 		"repository: schematics",
-		"repository: installer",
+		"repository: installer-internal",
 		"repository: cache",
-		"publicKeyFile: /keys/cosign.pub",
 		"signingKeyPath: /keys/cache-signing.key",
 		"externalURL: https://factory.example.ts.net",
+		"metrics:\n  addr: \"\"",
 	} {
 		if !strings.Contains(config, want) {
-			t.Fatalf("image factory config missing %q:\n%s", want, config)
+			t.Fatalf("image-factory config missing %q:\n%s", want, config)
 		}
+	}
+	for _, absent := range []string{
+		"external:",
+		"repository: installer\n",
+		"insecure: true",
+		"containerSignature:",
+		"publicKeyFile:",
+	} {
+		if strings.Contains(config, absent) {
+			t.Fatalf("image-factory config should not contain %q:\n%s", absent, config)
+		}
+	}
+}
+
+func TestImageFactoryConfigEmitsCosignKeyWhenSet(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	err := ImageFactoryConfig(outputPath, Config{
+		ImageFactoryExternalURL: "https://factory.example.ts.net",
+		ImageFactoryRegistry:    "127.0.0.1:5000",
+		ImageFactoryNamespace:   "syscode-labs/omni-image-factory",
+		ImageFactorySigningKey:  "/keys/cache-signing.key",
+		ImageFactoryCosignKey:   "/keys/cosign.pub",
+	})
+	if err != nil {
+		t.Fatalf("ImageFactoryConfig returned error: %v", err)
+	}
+
+	configYAML, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile image-factory config: %v", err)
+	}
+	config := string(configYAML)
+	if !strings.Contains(config, "containerSignature:\n  publicKeyFile: /keys/cosign.pub") {
+		t.Fatalf("image-factory config missing containerSignature.publicKeyFile:\n%s", config)
+	}
+}
+
+func TestImageFactoryConfigEmitsReplacementExtensionManifest(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	err := ImageFactoryConfig(outputPath, Config{
+		ImageFactoryExternalURL:       "https://factory.example.ts.net",
+		ImageFactoryRegistry:          "127.0.0.1:5000",
+		ImageFactorySigningKey:        "/keys/cache-signing.key",
+		ImageFactoryExtensionManifest: "syscode-labs/talos-extensions-composite",
+	})
+	if err != nil {
+		t.Fatalf("ImageFactoryConfig returned error: %v", err)
+	}
+
+	configYAML, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile image-factory config: %v", err)
+	}
+	if !strings.Contains(string(configYAML), "extensionCatalog:\n  sources:\n    - name: firecracker\n      manifest:\n        registry: 127.0.0.1:5000\n        namespace: custom-image-factory\n        repository: syscode-labs/talos-extensions-composite") {
+		t.Fatalf("image-factory config missing replacement extension manifest:\n%s", configYAML)
+	}
+}
+
+func TestImageFactoryConfigInsecureInternalRegistry(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	err := ImageFactoryConfig(outputPath, Config{
+		ImageFactoryExternalURL:  "https://factory.example.ts.net",
+		ImageFactoryRegistry:     "127.0.0.1:5000",
+		ImageFactoryNamespace:    "syscode-labs/omni-image-factory",
+		ImageFactoryCoreRegistry: "ghcr.io",
+		ImageFactoryInsecure:     true,
+		ImageFactorySigningKey:   "/keys/cache-signing.key",
+		ImageFactoryCosignKey:    "/keys/cosign.pub",
+	})
+	if err != nil {
+		t.Fatalf("ImageFactoryConfig returned error: %v", err)
+	}
+
+	configYAML, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile omni-image-factory config: %v", err)
+	}
+	config := string(configYAML)
+	if got := strings.Count(config, "insecure: true"); got != 3 {
+		t.Fatalf("insecure: true count = %d, want 3 (schematic/internal installer/cache):\n%s", got, config)
+	}
+	if strings.Contains(config, "repository: installer\n") {
+		t.Fatalf("installer.external block should be omitted:\n%s", config)
 	}
 }
 
