@@ -22,6 +22,9 @@ if [ -n "${OMNI_AUTH_ARGS:-}" ]; then
   escaped_auth="$(printf '%q' "${OMNI_AUTH_ARGS}")"
   REMOTE_ENV_PREFIX="OMNI_AUTH_ARGS=${escaped_auth} "
 fi
+if [ "${OMNI_ENABLE_BREAK_GLASS_CONFIGS:-false}" = "true" ]; then
+  REMOTE_ENV_PREFIX="${REMOTE_ENV_PREFIX}OMNI_ENABLE_BREAK_GLASS_CONFIGS=true "
+fi
 
 SSH_IDENTITY_FILE="${OMNI_SSH_IDENTITY_FILE:-}"
 if [ -z "$SSH_IDENTITY_FILE" ] && [ -n "${OMNI_SSH_PUBLIC_KEY_PATH:-}" ]; then
@@ -98,6 +101,7 @@ fi
 
 EXCLUDES=(
   --exclude '.git'
+  --exclude '.env'
   --exclude '.terraform'
   --exclude '.devbox'
   --exclude '.specstory'
