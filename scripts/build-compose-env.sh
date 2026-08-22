@@ -200,6 +200,9 @@ fi
 if [ -n "${OMNI_IMAGE_FACTORY_ADDRESS:-}" ]; then
   OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --image-factory-address=${OMNI_IMAGE_FACTORY_ADDRESS}"
 fi
+if [ "${OMNI_ENABLE_BREAK_GLASS_CONFIGS:-false}" = "true" ]; then
+  OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --enable-break-glass-configs"
+fi
 # Auto-accept the EULA on start so an Omni upgrade never needs a manual
 # browser click before omnictl/cluster provisioning can proceed again.
 if [ -n "${OMNI_EULA_ACCEPT_EMAIL:-}" ]; then
