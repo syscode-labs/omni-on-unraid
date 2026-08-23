@@ -186,7 +186,7 @@ func TestClusterIncludesMinorGatedPatchesForMatchingTalosMinor(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"omni/patches/1.14/image-cache.yaml",
+		"omni/patches/1.14/runtime-compat.yaml",
 		"omni/patches/1.14/workload-isolation.yaml",
 	} {
 		found := false
