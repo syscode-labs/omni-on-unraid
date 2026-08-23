@@ -164,18 +164,49 @@ func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
 	}
 
 	clusterPatches := docs[0]["patches"].([]map[string]any)
-	want := []string{
+	filePatches := []string{
 		"omni/patches/cni-none.yaml",
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
 	}
-	if len(clusterPatches) != len(want) {
-		t.Fatalf("v1.13 cluster patches = %v, want exactly %v", clusterPatches, want)
+	if len(clusterPatches) != len(filePatches)+1 {
+		t.Fatalf("v1.13 cluster patches = %v, want base files plus custom-install-image", clusterPatches)
 	}
-	for i, w := range want {
+	for i, w := range filePatches {
 		if got := clusterPatches[i]["file"]; got != w {
 			t.Fatalf("patch[%d] = %v, want %q", i, got, w)
 		}
+	}
+	install := clusterPatches[len(clusterPatches)-1]
+	if install["name"] != "custom-install-image" {
+		t.Fatalf("last patch = %v, want custom-install-image", install)
+	}
+}
+
+func TestClusterIncludesCustomInstallImagePatch(t *testing.T) {
+	// MachineClass.installImage is stripped by Omni, so the cluster template
+	// must carry the installer as a machine.install.image config patch.
+	docs, err := ClusterDocuments(Config{TalosVersion: "v1.14.0-rc.1", KubernetesVersion: "v1.36.3"})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+
+	var patch map[string]any
+	for _, p := range docs[0]["patches"].([]map[string]any) {
+		if p["name"] == "custom-install-image" {
+			patch = p
+			break
+		}
+	}
+	if patch == nil {
+		t.Fatalf("cluster patches missing custom-install-image: %v", docs[0]["patches"])
+	}
+
+	machine := patch["inline"].(map[string]any)["machine"].(map[string]any)
+	install := machine["install"].(map[string]any)
+	want := "ghcr.io/syscode-labs/talos-images/installer:v1.14.0-rc.1-libvirt"
+	if got := install["image"]; got != want {
+		t.Fatalf("install image = %v, want %q", got, want)
 	}
 }
 
