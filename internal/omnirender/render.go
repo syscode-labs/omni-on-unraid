@@ -72,9 +72,11 @@ func (c Config) withDefaults() Config {
 		// Runtime installer. Tag tracks the Talos version so the two never drift.
 		// -libvirt variant: same custom exts (incl. talos-ext-firecracker) plus
 		// qemu-guest-agent, which this repo's libvirt-only provider needs.
-		// NOT PERSISTED by Omni <=1.5.8 as of 2026-07-28 (MachineClass.installImage
-		// round-trips empty on every class in this deployment, confirmed live) —
-		// this field is currently inert. See syscode-labs/omni-on-unraid#7.
+		// MachineClass.installImage is NOT PERSISTED by Omni (round-trips empty;
+		// reconfirmed live on Omni 1.10.0, unraid-cp v14, 2026-08-23 — the field
+		// does not exist in MachineClassSpec upstream at all). The value still
+		// reaches fresh nodes via the custom-install-image cluster patch in
+		// ClusterDocuments. See syscode-labs/omni-on-unraid#7.
 		c.InstallImage = "ghcr.io/syscode-labs/talos-images/installer:" + c.TalosVersion + "-libvirt"
 	}
 
@@ -418,6 +420,23 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 	clusterPatches, err := clusterPatchFiles(config.TalosVersion)
 	if err != nil {
 		return nil, err
+	}
+	// Omni strips MachineClass.spec.installImage (see withDefaults), so the
+	// custom installer reaches fresh nodes through a machine.install.image
+	// config patch instead. It drives the initial install of a node only;
+	// Omni's reconciliation of already-installed nodes against this image is
+	// the Phase B schematic gap and is not claimed here.
+	if config.InstallImage != "" {
+		clusterPatches = append(clusterPatches, map[string]any{
+			"name": "custom-install-image",
+			"inline": map[string]any{
+				"machine": map[string]any{
+					"install": map[string]any{
+						"image": config.InstallImage,
+					},
+				},
+			},
+		})
 	}
 	docs := []map[string]any{
 		{
