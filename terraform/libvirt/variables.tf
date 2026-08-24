@@ -15,6 +15,36 @@ variable "network_bridge" {
   default     = "br0"
 }
 
+variable "provider_network_name" {
+  type        = string
+  description = "Optional libvirt NAT network the VM's second NIC attaches to, so the in-VM libvirt provider can reach the host virbr0 (e.g. 'default', 192.168.122.0/24). Empty disables the second NIC and its netplan policy route."
+  default     = ""
+}
+
+variable "provider_nic_mac" {
+  type        = string
+  description = "Fixed MAC for the provider NAT NIC, so the netplan match stays stable across domain replacement."
+  default     = ""
+}
+
+variable "provider_network_subnet" {
+  type        = string
+  description = "Subnet reachable via the provider NIC that must bypass Tailscale policy routing (e.g. 192.168.122.0/24)."
+  default     = "192.168.122.0/24"
+}
+
+variable "provider_route_metric" {
+  type        = number
+  description = "Route metric for the provider NAT subnet on the second NIC."
+  default     = 200
+}
+
+variable "provider_policy_priority" {
+  type        = number
+  description = "ip-rule priority for the provider NAT subnet policy route."
+  default     = 5000
+}
+
 variable "vm_name" {
   type    = string
   default = "omni-vm"
@@ -80,6 +110,7 @@ variable "ssh_public_key" {
 variable "tailscale_authkey" {
   type        = string
   description = "Tailscale auth key for VM bootstrap"
+  sensitive   = true
   default     = ""
 }
 

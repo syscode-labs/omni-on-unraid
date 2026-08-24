@@ -55,3 +55,30 @@ omnictl get links                 # node Link CONNECTED=true, LASTENDPOINT 192.1
 # on the libvirt host:
 conntrack -L | grep <omni-ts-ip>  # src=192.168.122.x preserved, [ASSURED]
 ```
+
+## Image Factory node (talos-image-factory)
+
+The Image Factory runs inside the Omni VM (host netns) and gets a **second**
+Tailscale identity via a sidecar container (`omni-ts-image-factory`, its own
+netns). The sidecar registers a node named `talos-image-factory` with
+`tag:image-factory` and runs `tailscale serve`, so factory traffic reaches
+VMs over the same routed path.
+
+- Node tag: `tag:image-factory` (auth keys used by the sidecar must have this
+  tag).
+- **The tag must be declared in the policy's `tagOwners`** — a tag referenced
+  only in `grants` is rejected at registration with `requested tags
+  [tag:image-factory] are invalid or not permitted`. Add it under `tagOwners`,
+  e.g. `"tagOwners": { "tag:image-factory": ["autogroup:admin"] }`, and create
+  the auth key with this tag.
+- Tailscale **serve** terminates TLS for `https://talos-image-factory...:443`
+  (config: `omni/image-factory/serve.json`) and proxies to the factory's host
+  netns HTTP `:8080` (reachable from the sidecar as
+  `host.docker.internal:8080`).
+- ACL grant needed so VMs can pull the installer from the factory:
+  ```jsonc
+  "autoApprovers": { "routes": { "<vm-subnet>": ["<host-tag>"] } },
+  "grants": [ { "src": ["tag:omni", "<vm-subnet>", "10.44.1.0/24"],
+                "dst": ["tag:image-factory"], "ip": ["tcp:443"] } ]
+  ```
+  Operator workstations also need `tcp:443` to `tag:image-factory`.

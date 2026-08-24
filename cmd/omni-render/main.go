@@ -46,8 +46,10 @@ func run() error {
 	flags.StringVar(&config.OIDCLogoutCallbackURLs, "oidc-logout-callback-urls", "", "comma-separated OIDC logout callback URLs")
 	flags.StringVar(&config.ProviderLibvirtURI, "provider-libvirt-uri", "", "libvirt URI used by the Omni libvirt provider")
 	flags.StringVar(&config.ImageFactoryExternalURL, "image-factory-address", "", "external URL used by Omni and Talos nodes for Image Factory")
-	flags.StringVar(&config.ImageFactoryRegistry, "image-factory-registry", "", "registry endpoint used by Image Factory for schematics/cache/installers")
+	flags.StringVar(&config.ImageFactoryRegistry, "image-factory-registry", "", "registry endpoint used by Image Factory for schematics/installer/cache")
+	flags.StringVar(&config.ImageFactoryCoreRegistry, "image-factory-core-registry", "", "public registry for upstream Sidero core artifacts (default ghcr.io)")
 	flags.StringVar(&config.ImageFactoryNamespace, "image-factory-namespace", "", "registry namespace used by Image Factory for schematics/cache/installers")
+	flags.BoolVar(&config.ImageFactoryInsecure, "image-factory-insecure", false, "allow plain-HTTP internal registry (loopback registry:2)")
 	flags.StringVar(&config.ImageFactorySigningKey, "image-factory-signing-key-path", "", "runtime path to Image Factory cache signing key")
 	flags.StringVar(&config.ImageFactoryCosignKey, "image-factory-cosign-public-key-path", "", "runtime path to cosign public key trusted by Image Factory")
 

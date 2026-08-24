@@ -24,12 +24,16 @@ resource "libvirt_cloudinit_disk" "seed" {
   name = "${var.vm_name}-seed.iso"
   pool = var.pool_name
   user_data = templatefile("${path.module}/cloud-init.yaml.tmpl", {
-    hostname           = var.hostname
-    fqdn               = local.fqdn
-    ssh_username       = var.ssh_username
-    ssh_public_key     = var.ssh_public_key
-    tailscale_authkey  = var.tailscale_authkey
-    tailscale_hostname = var.tailscale_hostname
+    hostname                 = var.hostname
+    fqdn                     = local.fqdn
+    ssh_username             = var.ssh_username
+    ssh_public_key           = var.ssh_public_key
+    tailscale_authkey        = var.tailscale_authkey
+    tailscale_hostname       = var.tailscale_hostname
+    provider_nic_mac         = var.provider_nic_mac
+    provider_network_subnet  = var.provider_network_subnet
+    provider_route_metric    = var.provider_route_metric
+    provider_policy_priority = var.provider_policy_priority
   })
 }
 
@@ -51,6 +55,14 @@ resource "libvirt_domain" "vm" {
   network_interface {
     bridge = var.network_bridge
     mac    = var.vm_mac != "" ? var.vm_mac : null
+  }
+
+  dynamic "network_interface" {
+    for_each = var.provider_network_name != "" ? [1] : []
+    content {
+      network_name = var.provider_network_name
+      mac          = var.provider_nic_mac != "" ? var.provider_nic_mac : null
+    }
   }
 
   console {

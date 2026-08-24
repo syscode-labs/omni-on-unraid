@@ -1,0 +1,19 @@
+machine:
+  registries:
+    mirrors:
+      docker.io:
+        endpoints:
+          - http://10.10.210.59:8096/v2/proxy-dockerhub
+        overridePath: true
+      ghcr.io:
+        endpoints:
+          - http://10.10.210.59:8096/v2/proxy-ghcr
+        overridePath: true
+      quay.io:
+        endpoints:
+          - http://10.10.210.59:8096/v2/proxy-quay
+        overridePath: true
+      registry.k8s.io:
+        endpoints:
+          - http://10.10.210.59:8096/v2/proxy-k8s
+        overridePath: true

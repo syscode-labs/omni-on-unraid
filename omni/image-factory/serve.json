@@ -1,0 +1,19 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "talos-image-factory.wind-bearded.ts.net:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://host.docker.internal:8080"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "talos-image-factory.wind-bearded.ts.net:443": false
+  }
+}

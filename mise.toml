@@ -6,6 +6,15 @@ kubectl = "1.34.2"
 kustomize = "5.7.1"
 yq = "4.53.3"
 
+# omnictl's own default for --omniconfig is the literal string
+# "$HOME/.talos/omni/config" -- it never shell-expands it, so without
+# OMNICONFIG set explicitly it tries to open a path named "$HOME" and,
+# for the PGP key store, silently creates a directory literally called
+# "$HOME" in the CWD. Set it here so every mise-activated shell/task
+# gets a real path.
+[env]
+OMNICONFIG = "{{env.HOME}}/.talos/omni/config"
+
 [tasks."infra:prepare-image"]
 description = "Download/sync Ubuntu cloud image to libvirt host path"
 run = "./scripts/prepare-base-image.sh"

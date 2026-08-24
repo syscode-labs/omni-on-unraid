@@ -27,6 +27,19 @@ If this fails with socket/connect errors, enable virtualization/libvirt on Unrai
 - Purpose: Terraform provider endpoint
 - Typical value: `qemu+tcp://<libvirt-host>/system`
 
+### Provider NAT management network
+- Purpose: Gives the Omni VM's in-VM libvirt provider a direct path to the
+  Unraid host when the LAN address is not reachable from the VM.
+- Set `OMNI_PROVIDER_NETWORK_NAME=default` and a fixed
+  `OMNI_PROVIDER_NIC_MAC` to attach the second NIC to libvirt's default NAT
+  network.
+- The default subnet, route metric, and policy-rule priority are
+  `192.168.122.0/24`, `200`, and `5000`; override them only when the libvirt
+  NAT network differs.
+- Configure `OMNI_PROVIDER_LIBVIRT_URI` for the NAT gateway, such as
+  `qemu+tcp://192.168.122.1/system`, so the provider reaches host libvirtd
+  over the second NIC.
+
 ### `OMNI_BASE_IMAGE_PATH`
 - Purpose: cloud image path on libvirt host
 - Example: `/path/on/libvirt-host/ubuntu-noble-cloudimg-amd64.qcow2`

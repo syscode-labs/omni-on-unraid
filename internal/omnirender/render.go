@@ -13,29 +13,32 @@ import (
 )
 
 type Config struct {
-	ClusterName             string
-	MachineClass            string
-	ProviderID              string
-	ControlPlanes           int
-	Workers                 int
-	KubernetesVersion       string
-	TalosVersion            string
-	Cores                   int
-	MemoryMB                int
-	DiskGB                  int
-	StoragePool             string
-	NetworkName             string
-	OIDCClientID            string
-	OIDCClientName          string
-	OIDCCallbackURLs        string
-	OIDCLogoutCallbackURLs  string
-	ProviderLibvirtURI      string
-	InstallImage            string
-	ImageFactoryExternalURL string
-	ImageFactoryRegistry    string
-	ImageFactoryNamespace   string
-	ImageFactorySigningKey  string
-	ImageFactoryCosignKey   string
+	ClusterName                   string
+	MachineClass                  string
+	ProviderID                    string
+	ControlPlanes                 int
+	Workers                       int
+	KubernetesVersion             string
+	TalosVersion                  string
+	Cores                         int
+	MemoryMB                      int
+	DiskGB                        int
+	StoragePool                   string
+	NetworkName                   string
+	OIDCClientID                  string
+	OIDCClientName                string
+	OIDCCallbackURLs              string
+	OIDCLogoutCallbackURLs        string
+	ProviderLibvirtURI            string
+	InstallImage                  string
+	ImageFactoryExternalURL       string
+	ImageFactoryRegistry          string
+	ImageFactoryNamespace         string
+	ImageFactoryCoreRegistry      string
+	ImageFactoryExtensionManifest string
+	ImageFactoryInsecure          bool
+	ImageFactorySigningKey        string
+	ImageFactoryCosignKey         string
 }
 
 func (c Config) withDefaults() Config {
@@ -52,12 +55,18 @@ func (c Config) withDefaults() Config {
 		c.ControlPlanes = 3
 	}
 	if c.Cores == 0 {
-		c.Cores = 4
+		// 4 cores x 3 CPs (+ omni-vm, Home Assistant) meant 16 vCPU committed
+		// against the Unraid host's 12 physical cores, no cputune fairness —
+		// one starved VM's kill-restart storm starved its siblings and took
+		// down the whole cluster's control plane. Trimmed 2026-08-10.
+		c.Cores = 3
 	}
 	if c.MemoryMB == 0 {
 		// 8192 put too much memory pressure on the Unraid host with 3 CPs
-		// running concurrently; trimmed 2026-07-28.
-		c.MemoryMB = 6144
+		// running concurrently; trimmed 2026-07-28. Running nodes actually
+		// ended up at 4096 (this default was bumped to 6144 without ever
+		// resizing them) — realigned to match reality, 2026-08-10.
+		c.MemoryMB = 4096
 	}
 	if c.DiskGB == 0 {
 		c.DiskGB = 40
@@ -214,11 +223,20 @@ func ImageFactoryConfig(outputPath string, config Config) error {
 	if config.ImageFactoryNamespace == "" {
 		config.ImageFactoryNamespace = os.Getenv("OMNI_IMAGE_FACTORY_NAMESPACE")
 	}
+	if config.ImageFactoryCoreRegistry == "" {
+		config.ImageFactoryCoreRegistry = os.Getenv("OMNI_IMAGE_FACTORY_CORE_REGISTRY")
+	}
+	if config.ImageFactoryExtensionManifest == "" {
+		config.ImageFactoryExtensionManifest = os.Getenv("OMNI_IMAGE_FACTORY_EXTENSION_MANIFEST")
+	}
 	if config.ImageFactorySigningKey == "" {
 		config.ImageFactorySigningKey = os.Getenv("OMNI_IMAGE_FACTORY_SIGNING_KEY_PATH")
 	}
 	if config.ImageFactoryCosignKey == "" {
 		config.ImageFactoryCosignKey = os.Getenv("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH")
+	}
+	if envInsecure := os.Getenv("OMNI_IMAGE_FACTORY_INSECURE"); envInsecure != "" {
+		config.ImageFactoryInsecure = envInsecure == "true"
 	}
 	if config.ImageFactoryExternalURL == "" {
 		return fmt.Errorf("OMNI_IMAGE_FACTORY_ADDRESS is required")
@@ -229,15 +247,46 @@ func ImageFactoryConfig(outputPath string, config Config) error {
 	if config.ImageFactoryNamespace == "" {
 		config.ImageFactoryNamespace = "syscode-labs/image-factory"
 	}
+	if config.ImageFactoryCoreRegistry == "" {
+		// Upstream Sidero base artifacts stay on public ghcr.io (anonymous
+		// pulls); only factory-generated content lives on the internal registry.
+		config.ImageFactoryCoreRegistry = "ghcr.io"
+	}
 	if config.ImageFactorySigningKey == "" {
 		return fmt.Errorf("OMNI_IMAGE_FACTORY_SIGNING_KEY_PATH is required")
-	}
-	if config.ImageFactoryCosignKey == "" {
-		return fmt.Errorf("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH is required")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
+	}
+
+	insecure := ""
+	if config.ImageFactoryInsecure {
+		insecure = `    insecure: true`
+	}
+
+	containerSignature := ""
+	if config.ImageFactoryCosignKey != "" {
+		containerSignature = fmt.Sprintf(`containerSignature:
+  publicKeyFile: %s
+`, config.ImageFactoryCosignKey)
+	}
+
+	extensionManifest := ""
+	if config.ImageFactoryExtensionManifest != "" {
+		extensionManifest = fmt.Sprintf(`extensionCatalog:
+  sources:
+    - name: firecracker
+      manifest:
+        registry: 127.0.0.1:5000
+        namespace: custom-image-factory
+        repository: %s
+        insecure: true
+      trust:
+        publicKey:
+          file: %s
+          hashAlgo: sha256
+`, config.ImageFactoryExtensionManifest, config.ImageFactoryCosignKey)
 	}
 
 	configYAML := fmt.Sprintf(`artifacts:
@@ -247,27 +296,27 @@ func ImageFactoryConfig(outputPath string, config Config) error {
     registry: %s
     namespace: %s
     repository: schematics
+%s
   installer:
     internal:
       registry: %s
       namespace: %s
-      repository: installer-internal
-    external:
-      registry: %s
-      namespace: %s
-      repository: installer
-containerSignature:
-  publicKeyFile: %s
-  subjectRegExp: ""
+    repository: installer-internal
+%s
+%s
+%s
 cache:
   oci:
     registry: %s
     namespace: %s
     repository: cache
+%s
   signingKeyPath: %s
 http:
   externalURL: %s
-`, config.ImageFactoryRegistry, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactoryCosignKey, config.ImageFactoryRegistry, config.ImageFactoryNamespace, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
+metrics:
+  addr: ""
+`, config.ImageFactoryCoreRegistry, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, containerSignature, extensionManifest, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
 
 	return os.WriteFile(outputPath, []byte(configYAML), 0o600)
 }
@@ -499,6 +548,8 @@ var baseClusterPatchFiles = []string{
 	"omni/patches/cni-none.yaml",
 	"omni/patches/disable-kube-proxy.yaml",
 	"omni/patches/inline-manifests.yaml",
+	"omni/patches/harbor-registry-mirror.yaml",
+	"omni/patches/imp-node-labels.yaml",
 }
 
 func clusterPatchFiles(talosVersion string) ([]map[string]any, error) {

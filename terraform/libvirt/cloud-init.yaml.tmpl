@@ -20,9 +20,35 @@ packages:
   - docker-compose-v2
   - qemu-guest-agent
 
+%{ if provider_nic_mac != "" }
+# The libvirt provider in this VM talks to the host libvirtd over the default
+# NAT network. Tailscale policy routing would swallow that subnet, so pin a
+# policy route that only exempts the provider NAT subnet. runcmd re-applies
+# this after package upgrades touch networkd; netplan is idempotent.
+write_files:
+  - path: /etc/netplan/60-omni-provider.yaml
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens8:
+            match:
+              macaddress: ${provider_nic_mac}
+            dhcp4: true
+            routes:
+              - to: ${provider_network_subnet}
+                metric: ${provider_route_metric}
+            routing-policy:
+              - to: ${provider_network_subnet}
+                priority: ${provider_policy_priority}
+%{ endif }
+
 runcmd:
   - systemctl enable --now qemu-guest-agent
   - systemctl enable --now docker
+%{ if provider_nic_mac != "" }
+  - netplan apply
+%{ endif }
   - curl -fsSL https://tailscale.com/install.sh | sh
   - systemctl enable --now tailscaled
   - |
