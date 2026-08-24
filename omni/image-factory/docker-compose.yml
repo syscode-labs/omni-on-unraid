@@ -10,7 +10,7 @@ services:
       - omni-registry-data:/var/lib/registry
 
   image-factory:
-    image: ghcr.io/siderolabs/image-factory:${OMNI_IMAGE_FACTORY_TAG:-v1.4.0}
+    image: ${OMNI_IMAGE_FACTORY_IMAGE:-ghcr.io/siderolabs/image-factory:${OMNI_IMAGE_FACTORY_TAG:-v1.4.0}}
     container_name: omni-image-factory
     restart: unless-stopped
     network_mode: host
@@ -45,7 +45,7 @@ services:
     environment:
       TS_AUTHKEY: "${OMNI_IMAGE_FACTORY_TS_AUTHKEY:?set OMNI_IMAGE_FACTORY_TS_AUTHKEY}"
       TS_HOSTNAME: talos-image-factory
-      TS_EXTRA_ARGS: ${TS_ADVERTISE_TAGS:---advertise-tags=tag:image-factory}
+      TS_EXTRA_ARGS: ${TS_ADVERTISE_TAGS:---advertise-tags=tag:image-factory} --accept-routes
       TS_SERVE_CONFIG: /etc/tailscale/serve.json
       TS_STATE_DIR: /var/lib/tailscale
       TS_ACCEPT_DNS: "true"

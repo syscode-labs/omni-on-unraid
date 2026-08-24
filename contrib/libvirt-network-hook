@@ -1,6 +1,6 @@
 #!/bin/bash
-# libvirt network hook — keep Omni-bound Talos VM traffic UN-masqueraded so the
-# tailnet ACL (<VM_SUBNET> -> tag:omni) matches the real VM source IP.
+# libvirt network hook — keep tailnet-bound Talos VM traffic un-masqueraded so
+# subnet-based Tailscale ACLs match the real VM source IP.
 #
 # Without this, libvirt SNATs VMs to the host tailscale IP (a tag the ACL does
 # not permit for tag:omni), so SideroLink never connects. See the plans-repo
@@ -10,10 +10,15 @@
 # Unraid /etc/libvirt is the persistent libvirt.img; libvirtd rescans hooks at
 # boot and fires "started" when the default net autostarts. Idempotent.
 net="$1"; op="$2"
-OMNI_IP="100.72.134.50"
 VM_SUBNET="192.168.122.0/24"
+TAILNET_DESTINATIONS=(
+  "100.72.134.50"  # Omni
+  "100.80.125.127" # Image Factory
+)
 if [ "$net" = "default" ] && { [ "$op" = "started" ] || [ "$op" = "plugged" ] || [ "$op" = "updated" ]; }; then
-  iptables -t nat -C LIBVIRT_PRT -s "$VM_SUBNET" -d "$OMNI_IP" -j RETURN 2>/dev/null \
-    || iptables -t nat -I LIBVIRT_PRT 1 -s "$VM_SUBNET" -d "$OMNI_IP" -j RETURN
+  for destination in "${TAILNET_DESTINATIONS[@]}"; do
+    iptables -t nat -C LIBVIRT_PRT -s "$VM_SUBNET" -d "$destination" -j RETURN 2>/dev/null \
+      || iptables -t nat -I LIBVIRT_PRT 1 -s "$VM_SUBNET" -d "$destination" -j RETURN
+  done
 fi
 exit 0
