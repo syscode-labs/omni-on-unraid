@@ -155,7 +155,7 @@ func TestClusterOmitsMinorGatedPatchesForOtherTalosMinor(t *testing.T) {
 	}
 }
 
-func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
+func TestClusterV13PatchSetIsExactlyTheBaseFour(t *testing.T) {
 	// omni/patches/ is a flat directory shared with other consumers. The base
 	// patch set must stay explicit rather than a directory glob, or unraid-lab
 	// would silently pick up patches that were never part of its rendered set.
@@ -170,6 +170,7 @@ func TestClusterV13PatchSetIsExactlyTheBaseThree(t *testing.T) {
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
 		"omni/patches/harbor-registry-mirror.yaml",
+		"omni/patches/imp-node-labels.yaml",
 	}
 	if len(clusterPatches) != len(want) {
 		t.Fatalf("v1.13 cluster patches = %v, want exactly %v", clusterPatches, want)

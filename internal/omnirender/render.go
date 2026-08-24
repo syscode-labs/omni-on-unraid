@@ -530,6 +530,7 @@ var baseClusterPatchFiles = []string{
 	"omni/patches/disable-kube-proxy.yaml",
 	"omni/patches/inline-manifests.yaml",
 	"omni/patches/harbor-registry-mirror.yaml",
+	"omni/patches/imp-node-labels.yaml",
 }
 
 func clusterPatchFiles(talosVersion string) ([]map[string]any, error) {
