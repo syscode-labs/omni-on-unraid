@@ -56,7 +56,8 @@ func (c Config) withDefaults() Config {
 	}
 	if c.Cores == 0 {
 		// 4 cores x 3 CPs (+ omni-vm, Home Assistant) meant 16 vCPU committed
-		// against the Unraid host's 12 physical cores, no cputune fairness —
+		// against what this comment assumed was 12 physical cores — actually
+		// 12 *threads* (i5-12400 = 6 physical cores). No cputune fairness —
 		// one starved VM's kill-restart storm starved its siblings and took
 		// down the whole cluster's control plane. Trimmed 2026-08-10.
 		c.Cores = 3
@@ -90,6 +91,14 @@ func (c Config) withDefaults() Config {
 	}
 
 	return c
+}
+
+const talosInstallerRepository = "ghcr.io/syscode-labs/talos-images/installer"
+
+const firecrackerExtensionImage = "syscode-labs/talos-ext-firecracker"
+
+func libvirtInstallerImage(talosVersion string) string {
+	return talosInstallerRepository + ":" + talosVersion + "-libvirt"
 }
 
 func PocketIDOIDCClientSQL(config Config) (string, error) {
@@ -265,28 +274,31 @@ func ImageFactoryConfig(outputPath string, config Config) error {
 		insecure = `    insecure: true`
 	}
 
-	containerSignature := ""
-	if config.ImageFactoryCosignKey != "" {
-		containerSignature = fmt.Sprintf(`containerSignature:
-  publicKeyFile: %s
-`, config.ImageFactoryCosignKey)
-	}
-
 	extensionManifest := ""
 	if config.ImageFactoryExtensionManifest != "" {
+		if config.ImageFactoryCosignKey == "" {
+			return fmt.Errorf("OMNI_IMAGE_FACTORY_COSIGN_PUBLIC_KEY_PATH is required when OMNI_IMAGE_FACTORY_EXTENSION_MANIFEST is set")
+		}
 		extensionManifest = fmt.Sprintf(`extensionCatalog:
   sources:
+    - name: sidero
+      manifest:
+        registry: %s
+        repository: siderolabs/extensions
+      trust:
+        keyless:
+          subjectRegExp: '(@siderolabs\.com$|^releasemgr-svc@talos-production\.iam\.gserviceaccount\.com$)'
+          issuer: https://accounts.google.com
     - name: firecracker
       manifest:
         registry: 127.0.0.1:5000
-        namespace: custom-image-factory
-        repository: %s
+        repository: custom-image-factory/%s
         insecure: true
       trust:
         publicKey:
           file: %s
           hashAlgo: sha256
-`, config.ImageFactoryExtensionManifest, config.ImageFactoryCosignKey)
+`, config.ImageFactoryCoreRegistry, config.ImageFactoryExtensionManifest, config.ImageFactoryCosignKey)
 	}
 
 	configYAML := fmt.Sprintf(`artifacts:
@@ -301,8 +313,7 @@ func ImageFactoryConfig(outputPath string, config Config) error {
     internal:
       registry: %s
       namespace: %s
-    repository: installer-internal
-%s
+      repository: installer-internal
 %s
 %s
 cache:
@@ -316,7 +327,7 @@ http:
   externalURL: %s
 metrics:
   addr: ""
-`, config.ImageFactoryCoreRegistry, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, containerSignature, extensionManifest, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
+`, config.ImageFactoryCoreRegistry, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, extensionManifest, config.ImageFactoryRegistry, config.ImageFactoryNamespace, insecure, config.ImageFactorySigningKey, config.ImageFactoryExternalURL)
 
 	return os.WriteFile(outputPath, []byte(configYAML), 0o600)
 }
@@ -356,7 +367,7 @@ func LoadDotEnv(path string) error {
 
 func oidcURLList(path string) string {
 	domains := []string{}
-	for _, envName := range []string{"OMNI_DOMAIN", "OMNI_PUBLIC_DOMAIN"} {
+	for _, envName := range []string{"OMNI_DOMAIN"} {
 		domain := strings.TrimSpace(os.Getenv(envName))
 		if domain != "" {
 			domains = append(domains, domain)
@@ -438,6 +449,9 @@ func MachineClassDocuments(config Config) ([]map[string]any, error) {
 	if err := requireVersion("talos version", "talos-version", config.TalosVersion); err != nil {
 		return nil, err
 	}
+	if want := libvirtInstallerImage(config.TalosVersion); config.InstallImage != want {
+		return nil, fmt.Errorf("install image %q does not match Talos version %q; want %q", config.InstallImage, config.TalosVersion, want)
+	}
 
 	return []map[string]any{
 		{
@@ -447,7 +461,6 @@ func MachineClassDocuments(config Config) ([]map[string]any, error) {
 				"id":        config.MachineClass,
 			},
 			"spec": map[string]any{
-				"installImage": config.InstallImage,
 				"autoprovision": map[string]any{
 					"providerid":   config.ProviderID,
 					"providerdata": providerData(config),
@@ -497,6 +510,7 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			"talos": map[string]any{
 				"version": config.TalosVersion,
 			},
+			"systemExtensions": []string{firecrackerExtensionImage},
 			"features": map[string]any{
 				"diskEncryption": false,
 			},

@@ -38,34 +38,11 @@ if [ -n "$SSH_IDENTITY_FILE" ]; then
 fi
 
 TLS_MODE="${OMNI_TLS_MODE:-direct}"
-OMNI_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN:-omni.local}}"
-TLS_CACHE_DIR="${OMNI_TLS_CERT_LOCAL_DIR:-${ROOT_DIR}/.cache/tls}"
-OMNI_TLS_PUBLIC_CERT_FILE="${OMNI_TLS_PUBLIC_CERT_FILE:-${TLS_CACHE_DIR}/certificates/${OMNI_DOMAIN}.crt}"
-OMNI_TLS_PUBLIC_KEY_FILE="${OMNI_TLS_PUBLIC_KEY_FILE:-${TLS_CACHE_DIR}/certificates/${OMNI_DOMAIN}.key}"
 
-copy_tls_assets_direct() {
+verify_tailscale_socket() {
   local target="$1"
-  local remote_dir="$2"
-  local remote_certs="${remote_dir}/generated/certs"
-  ssh $BASE_SSH_OPTS "$target" "mkdir -p '${remote_certs}'"
-
   if [ "$TLS_MODE" != "caddy-sni" ]; then
     return 0
-  fi
-
-  # Public cert is optional — only required if OMNI_PUBLIC_DOMAIN is set
-  if [ -n "${OMNI_PUBLIC_DOMAIN:-}" ]; then
-    if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
-      if [ -n "${OMNI_TLS_ACME_DNS_PROVIDER:-}" ] && [ -n "${OMNI_TLS_ACME_EMAIL:-}" ]; then
-        "${ROOT_DIR}/scripts/issue-cert.sh"
-      fi
-      if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
-        echo "Public cert/key files not found: $OMNI_TLS_PUBLIC_CERT_FILE $OMNI_TLS_PUBLIC_KEY_FILE" >&2
-        exit 1
-      fi
-    fi
-    scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_CERT_FILE" "${target}:${remote_certs}/public.crt"
-    scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_KEY_FILE" "${target}:${remote_certs}/public.key"
   fi
 
   ssh $BASE_SSH_OPTS "$target" "test -S /var/run/tailscale/tailscaled.sock"
@@ -80,7 +57,17 @@ if [ -z "$TARGET" ]; then
 
   if [ -n "$libvirt_uri" ]; then
     for _ in $(seq 1 30); do
-      ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source lease 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); if (a[1] !~ /^127\./) {print a[1]; exit}}')"
+      ip=""
+      if [ -n "${OMNI_VM_MAC:-}" ]; then
+        # Prefer the NIC identified by MAC: the VM has a second NIC on the
+        # libvirt provider's own NAT network (192.168.122.0/24, for
+        # provisioning cluster VMs), and domifaddr's exclusion-heuristic
+        # fallback below can pick that one instead of the real admin NIC.
+        ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source agent 2>/dev/null | awk -v mac="$OMNI_VM_MAC" 'tolower($2) == tolower(mac) && /ipv4/ {split($4,a,"/"); if (a[1] !~ /^127\./) {print a[1]; exit}}')"
+      fi
+      if [ -z "$ip" ]; then
+        ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source lease 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); if (a[1] !~ /^127\./) {print a[1]; exit}}')"
+      fi
       if [ -z "$ip" ]; then
         ip="$(virsh -c "$libvirt_uri" domifaddr "$VM_NAME" --source agent 2>/dev/null | awk '/ipv4/ {split($4,a,"/"); if ($1 != "lo" && $1 != "docker0" && $1 != "tailscale0" && a[1] !~ /^127\./ && a[1] !~ /^172\.17\./) {print a[1]; exit}}')"
       fi
@@ -132,31 +119,13 @@ if [ "$needs_relay" = "1" ]; then
     "${EXCLUDES[@]}" \
     "${ROOT_DIR}/" "${JUMP_HOST}:${JUMP_STAGE_DIR}/"
 
-  if [ "$TLS_MODE" = "caddy-sni" ]; then
-    ssh $BASE_SSH_OPTS "$JUMP_HOST" "mkdir -p '${JUMP_STAGE_DIR}/generated/certs'"
-    if [ -n "${OMNI_PUBLIC_DOMAIN:-}" ]; then
-      if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
-        if [ -n "${OMNI_TLS_ACME_DNS_PROVIDER:-}" ] && [ -n "${OMNI_TLS_ACME_EMAIL:-}" ]; then
-          "${ROOT_DIR}/scripts/issue-cert.sh"
-        fi
-      fi
-      if [ ! -f "$OMNI_TLS_PUBLIC_CERT_FILE" ] || [ ! -f "$OMNI_TLS_PUBLIC_KEY_FILE" ]; then
-        echo "Public cert/key files not found: $OMNI_TLS_PUBLIC_CERT_FILE $OMNI_TLS_PUBLIC_KEY_FILE" >&2
-        exit 1
-      fi
-      scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_CERT_FILE" "${JUMP_HOST}:${JUMP_STAGE_DIR}/generated/certs/public.crt"
-      scp $BASE_SSH_OPTS "$OMNI_TLS_PUBLIC_KEY_FILE" "${JUMP_HOST}:${JUMP_STAGE_DIR}/generated/certs/public.key"
-    fi
-  fi
-
-ssh -A $BASE_SSH_OPTS "$JUMP_HOST" bash -s -- "$TARGET" "$REMOTE_DIR" "$JUMP_STAGE_DIR" "$REMOTE_ENV_PREFIX" "$TLS_MODE" "$OMNI_TS_DOMAIN" <<'REMOTE'
+ssh -A $BASE_SSH_OPTS "$JUMP_HOST" bash -s -- "$TARGET" "$REMOTE_DIR" "$JUMP_STAGE_DIR" "$REMOTE_ENV_PREFIX" "$TLS_MODE" <<'REMOTE'
 set -euo pipefail
 TARGET="$1"
 REMOTE_DIR="$2"
 STAGE_DIR="$3"
 REMOTE_ENV_PREFIX="${4:-}"
 TLS_MODE="${5:-direct}"
-OMNI_TS_DOMAIN="${6:-omni.local}"
 SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
 
 for _ in $(seq 1 60); do
@@ -211,7 +180,7 @@ rsync -az --delete \
   "${EXCLUDES[@]}" \
   "${ROOT_DIR}/" "${TARGET}:${REMOTE_DIR}/"
 
-copy_tls_assets_direct "$TARGET" "$REMOTE_DIR"
+verify_tailscale_socket "$TARGET"
 
 ssh $BASE_SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && ${REMOTE_ENV_PREFIX}./scripts/render.sh && ${REMOTE_ENV_PREFIX}./scripts/up.sh"
 

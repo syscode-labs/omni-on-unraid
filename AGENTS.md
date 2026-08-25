@@ -32,6 +32,7 @@
 - Read-only examples: `rtk git status`, `rtk git log`, `rtk git diff`, `rtk gh repo view`, `rtk gh run list`, `rtk gh run view`, `rtk gh release view`, `rtk gh pr view`, `rtk gh pr list`, `rtk gh pr checks`, `rtk curl -I`, `rtk nc -vz`, `rtk tailscale status`, `rtk tailscale ping`, `rtk ssh <host> '<read-only status/log/test command>'`, and `rtk env BROWSER=echo mise exec -- omnictl get ...`.
 - Write or state-changing commands must still ask first, with a narrow approval scope. Do not ask for broad persistent write allowlists unless the user explicitly requests that exact automation.
 - Write/state-changing examples: `git commit`, `git push`, `gh secret set`, `gh repo create`, `gh pr merge`, `docker compose up/down/restart`, `rsync` to remote hosts, editing remote files, `make provider`, `make mc`, `make cluster`, `mise run omni:*:apply`, deleting/recreating clusters, and anything that can change infrastructure.
+- For an explicitly authorized Omni force destroy, submit the force request and return immediately. Do not wait for finalizer teardown; check its status separately.
 - Never print secrets in final answers or logs. If a secret must be passed to a CLI, prefer stdin or a secret manager; if the CLI forces argv, state that risk and rotate afterward.
 
 ## Scope Discipline

@@ -35,3 +35,8 @@ if [ "${TLS_MODE:-direct}" = "caddy-sni" ]; then
 fi
 
 "${compose_cmd[@]}" "${compose_files[@]}" --env-file "$ENV_FILE" up -d
+
+if [ "${TLS_MODE:-direct}" = "caddy-sni" ]; then
+  # Caddy reads a bind-mounted generated Caddyfile, so recreate it to apply changes.
+  "${compose_cmd[@]}" "${compose_files[@]}" --env-file "$ENV_FILE" up -d --force-recreate caddy
+fi

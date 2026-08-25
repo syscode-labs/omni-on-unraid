@@ -54,6 +54,7 @@ func TestCaddySNIModeProxiesMachineAPI(t *testing.T) {
 		"OMNI_TLS_MODE=caddy-sni",
 		"OMNI_TS_DOMAIN=omni.example.ts.net",
 		"OMNI_TS_IP=100.64.0.10",
+		"OMNI_PUBLIC_DOMAIN=omni.example.com",
 		"",
 	}, "\n")
 	if err := os.WriteFile(envFile, []byte(env), 0o600); err != nil {
@@ -69,6 +70,12 @@ func TestCaddySNIModeProxiesMachineAPI(t *testing.T) {
 	}
 	if !strings.Contains(string(envOutput), "MACHINE_API_BIND_ADDR=127.0.0.1:8092") {
 		t.Fatalf("caddy-sni mode should bind Omni machine API to loopback:\n%s", envOutput)
+	}
+	if !strings.Contains(string(envOutput), "K8S_PROXY_BIND_ADDR=127.0.0.1:8100") {
+		t.Fatalf("caddy-sni mode should bind the Kubernetes proxy to loopback:\n%s", envOutput)
+	}
+	if !strings.Contains(string(envOutput), "CADDY_TS_BIND_ADDR=100.64.0.10") {
+		t.Fatalf("caddy-sni mode should bind Caddy to the Tailscale IP:\n%s", envOutput)
 	}
 	if !strings.Contains(string(envOutput), "SIDEROLINK_ADVERTISED_API_URL=https://omni.example.ts.net:8090/") {
 		t.Fatalf("caddy-sni mode should advertise the TLS DNS endpoint:\n%s", envOutput)
@@ -91,11 +98,26 @@ func TestCaddySNIModeProxiesMachineAPI(t *testing.T) {
 	if !strings.Contains(caddy, "fallback_sni omni.example.ts.net") {
 		t.Fatalf("Caddyfile should fallback unmatched SNI clients to the Tailscale DNS name:\n%s", caddy)
 	}
-	if !strings.Contains(caddy, "tls /opt/certs/tailscale.crt /opt/certs/tailscale.key") {
-		t.Fatalf("Caddyfile should load the Tailscale cert for no-SNI machine API clients:\n%s", caddy)
+	if !strings.Contains(caddy, "get_certificate tailscale") {
+		t.Fatalf("Caddyfile should obtain certificates from Tailscale:\n%s", caddy)
 	}
 	if !strings.Contains(caddy, "reverse_proxy https://127.0.0.1:8092") {
 		t.Fatalf("Caddyfile missing SideroLink machine API upstream:\n%s", caddy)
+	}
+	if !strings.Contains(caddy, "omni.example.ts.net:8100") {
+		t.Fatalf("Caddyfile missing Kubernetes proxy listener:\n%s", caddy)
+	}
+	if !strings.Contains(caddy, "bind 100.64.0.10") {
+		t.Fatalf("Caddyfile should bind the Kubernetes proxy to the Tailscale IP:\n%s", caddy)
+	}
+	if !strings.Contains(caddy, "reverse_proxy https://127.0.0.1:8100") {
+		t.Fatalf("Caddyfile missing Kubernetes proxy upstream:\n%s", caddy)
+	}
+	if strings.Contains(caddy, "omni.example.com") {
+		t.Fatalf("Caddyfile should not generate a public listener:\n%s", caddy)
+	}
+	if !strings.Contains(caddy, "get_certificate tailscale") {
+		t.Fatalf("Caddyfile should obtain the Kubernetes proxy certificate from Tailscale:\n%s", caddy)
 	}
 }
 

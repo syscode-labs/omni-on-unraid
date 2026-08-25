@@ -112,7 +112,6 @@ mise run infra:prepare-image
 mise run infra:check
 mise run infra:init
 mise run infra:apply
-mise run omni:issue-cert   # optional, for OMNI_TLS_PUBLIC_CERT_FILE/KEY_FILE source
 mise run omni:deploy-remote
 ```
 
@@ -138,8 +137,8 @@ mise run ctr:shell
 ## Important
 
 - `OMNI_LIBVIRT_URI` must point to your actual libvirt endpoint.
-- For dual-host TLS (`*.ts.net` + public DNS), set `OMNI_TLS_MODE=caddy-sni`,
-  `OMNI_TS_DOMAIN`, and `OMNI_PUBLIC_DOMAIN` in `.env`.
+- For tailnet-only TLS, set `OMNI_TLS_MODE=caddy-sni`, `OMNI_TS_DOMAIN`, and
+  `OMNI_TS_IP` in `.env`.
   - Omni binds on `127.0.0.1:8443`.
   - Caddy terminates TLS on `:443` with SNI and proxies to Omni.
 - `OMNI_LIBVIRT_BRIDGE` defaults to `br0` for direct LAN IPs and can be set to VLAN bridges like `br0.50`.
@@ -149,7 +148,6 @@ mise run ctr:shell
 - If using Unraid, VM/libvirt service must be enabled and reachable.
 - Full operator details: `docs/sops/`.
 - `ctr:omni:deploy-remote` auto-discovers VM IP from libvirt and renders a generated compose env (`generated/compose.env`) with sane defaults.
-- In `caddy-sni` mode, `omni:deploy-remote` handles public TLS assets idempotently:
-  - copies public cert/key from `OMNI_TLS_PUBLIC_CERT_FILE` / `OMNI_TLS_PUBLIC_KEY_FILE`
-  - lets Caddy obtain and renew `*.ts.net` certs natively through host `tailscaled`
+- In `caddy-sni` mode, Caddy obtains and renews `*.ts.net` certificates natively
+  through host `tailscaled`.
 - Prereq checklist: `docs/sops/50-prereq-checklist.md`.
