@@ -80,7 +80,7 @@ reboot_machine() {
 
   log "REBOOTING $node ($addr)"
   local tc="$STATE_DIR/talosconfig"
-  ${OMNICTL:-omnictl} talosconfig --output "$tc" >/dev/null
+  ${OMNICTL:-omnictl} talosconfig -f "$tc" >/dev/null
   talosctl --talosconfig "$tc" --nodes "$addr" --cmdline-timeout 30s reboot
   echo "$now_s" > "$stamp_file"
   log "DONE reboot issued for $node"
