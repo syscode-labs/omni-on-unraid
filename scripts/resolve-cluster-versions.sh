@@ -12,6 +12,15 @@ set -euo pipefail
 cluster_name="${1:-${CLUSTER_NAME:-unraid-lab}}"
 versions_url="${VERSIONS_YAML_URL:-https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/main/omni/versions.yaml}"
 
+validate_version() {
+  local label="$1"
+  local version="$2"
+  if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+    echo "resolve-cluster-versions: invalid ${label} version '${version}'" >&2
+    exit 1
+  fi
+}
+
 versions_yaml="$(curl -fsSL "$versions_url")"
 
 global_talos="$(printf '%s' "$versions_yaml" | yq eval '.talos // ""' -)"
@@ -44,6 +53,9 @@ if [ -z "$kubernetes_version" ] || [ "$kubernetes_version" = "null" ]; then
   echo "resolve-cluster-versions: no kubernetes version resolved for cluster '${cluster_name}'" >&2
   exit 1
 fi
+
+validate_version "talos" "$talos_version"
+validate_version "kubernetes" "$kubernetes_version"
 
 echo "TALOS_VERSION=${talos_version}"
 echo "KUBERNETES_VERSION=${kubernetes_version}"

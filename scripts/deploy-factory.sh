@@ -39,7 +39,9 @@ mise exec -- go run ./cmd/omni-render image-factory-config --output "${ROOT_DIR}
 "${ROOT_DIR}/scripts/build-factory-env.sh"
 
 echo "Copying factory stack to ${TARGET}:${REMOTE_DIR}/generated/image-factory/"
-ssh $SSH_OPTS "$TARGET" "mkdir -p '${REMOTE_DIR}/generated/image-factory/keys'"
+# The first deployment may create this path through sudo; restore ownership so
+# later deployments can update generated factory inputs without manual cleanup.
+ssh $SSH_OPTS "$TARGET" "sudo -n mkdir -p '${REMOTE_DIR}/generated/image-factory/keys' && sudo -n chown -R '${SSH_USER}:${SSH_USER}' '${REMOTE_DIR}/generated/image-factory'"
 scp $SSH_OPTS "${ROOT_DIR}/omni/image-factory/docker-compose.yml" "${TARGET}:${REMOTE_DIR}/generated/image-factory/docker-compose.yml"
 scp $SSH_OPTS "${ROOT_DIR}/omni/image-factory/serve.json" "${TARGET}:${REMOTE_DIR}/generated/image-factory/serve.json"
 scp $SSH_OPTS "${ROOT_DIR}/generated/image-factory/config.yaml" "${TARGET}:${REMOTE_DIR}/generated/image-factory/config.yaml"
@@ -55,4 +57,4 @@ echo "Placing stack under ${REMOTE_DIR}/omni/image-factory/ (sudo)"
 ssh $SSH_OPTS "$TARGET" "sudo -n mkdir -p '${REMOTE_DIR}/omni/image-factory' && sudo -n cp '${REMOTE_DIR}/generated/image-factory/docker-compose.yml' '${REMOTE_DIR}/omni/image-factory/docker-compose.yml' && sudo -n cp '${REMOTE_DIR}/generated/image-factory/serve.json' '${REMOTE_DIR}/omni/image-factory/serve.json'"
 
 echo "Starting factory stack over SSH"
-ssh $SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && docker compose -f omni/image-factory/docker-compose.yml --env-file generated/image-factory/factory.env up -d || sudo -n docker compose -f omni/image-factory/docker-compose.yml --env-file generated/image-factory/factory.env up -d"
+ssh $SSH_OPTS "$TARGET" "cd '${REMOTE_DIR}' && sudo -n docker compose -f omni/image-factory/docker-compose.yml --env-file generated/image-factory/factory.env up -d --force-recreate image-factory"

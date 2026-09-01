@@ -1,0 +1,13 @@
+# Reboot 10s after a kernel panic instead of hanging forever.
+#
+# Rationale (2026-08-25 hv297m incident): a control-plane node whose network
+# datapath rots leaves etcd/kubelet wedged with no self-healing. A panic is
+# at least recoverable via this arg; datapath rot itself is handled by
+# scripts/node-watchdog.sh (NotReady detection -> talosctl reboot).
+#
+# Apply via render.sh so it lands in every cluster template, then roll with
+# an omnictl cluster template apply + machine config update cycle.
+machine:
+  install:
+    extraKernelArgs:
+      - panic=10

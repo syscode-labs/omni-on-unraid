@@ -96,10 +96,6 @@ depends = ["omni:health:compose-env", "omni:health:tls"]
 description = "Render pinned Omni deployment assets"
 run = "./scripts/render.sh"
 
-[tasks."omni:issue-cert"]
-description = "Issue/renew public TLS cert locally via ACME DNS-01"
-run = "./scripts/issue-cert.sh"
-
 [tasks."omni:up"]
 description = "Start Omni stack"
 run = "./scripts/up.sh"
@@ -205,6 +201,10 @@ set -euo pipefail
 cluster_name="${CLUSTER_NAME:-unraid-lab}"
 eval "$(./scripts/resolve-cluster-versions.sh "$cluster_name")"
 go run ./cmd/omni-render cluster --output generated/cluster.yaml --machine-class unraid-cp --cluster-name "$cluster_name" --talos-version "$TALOS_VERSION" --kubernetes-version "$KUBERNETES_VERSION"
+# omnictl resolves file patches relative to generated/cluster.yaml, so keep its
+# allowed generated/ mirror in lockstep with the renderer's source patches.
+mkdir -p generated/omni/patches
+rsync -a --delete omni/patches/ generated/omni/patches/
 '''
 
 [tasks."omni:bootstrap-secrets"]
@@ -213,7 +213,7 @@ run = "./omni/scripts/inject-tailscale-oauth.sh"
 
 [tasks."omni:cluster:apply"]
 description = "Validate, sync, and wait on Omni cluster template"
-depends = ["omni:version-check", "omni:bootstrap-secrets", "omni:cluster:render"]
+depends = ["omni:version-check", "omni:cluster:render"]
 run = '''
 # --allowed-dir scopes which files omnictl may read patch refs from.
 # The dry-run rehearsal is the last cheap gate before machines are touched:

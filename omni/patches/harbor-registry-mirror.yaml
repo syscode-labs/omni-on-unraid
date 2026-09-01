@@ -17,3 +17,6 @@ machine:
         endpoints:
           - http://10.10.210.59:8096/v2/proxy-k8s
         overridePath: true
+      192.168.122.26:8080:
+        endpoints:
+          - http://192.168.122.26:8080

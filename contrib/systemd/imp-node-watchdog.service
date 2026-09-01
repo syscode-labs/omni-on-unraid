@@ -1,0 +1,10 @@
+[Unit]
+Description=Imp lab node watchdog — reboot nodes stuck NotReady (dry-run by default)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=giovanni
+Environment=WATCHDOG_DRY_RUN=true
+ExecStart=/home/giovanni/syscode/git/omni-on-unraid/scripts/node-watchdog.sh

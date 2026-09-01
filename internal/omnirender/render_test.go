@@ -13,7 +13,7 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 		ProviderID:   "libvirt",
 		StoragePool:  "omni-domains",
 		NetworkName:  "default",
-		TalosVersion: "v1.13.7",
+		TalosVersion: "v1.14.0-beta.1",
 	})
 	if err != nil {
 		t.Fatalf("MachineClassDocuments returned error: %v", err)
@@ -24,8 +24,8 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 	}
 
 	spec := docs[0]["spec"].(map[string]any)
-	if got := spec["installImage"]; got != "ghcr.io/syscode-labs/talos-images/installer:v1.13.7-libvirt" {
-		t.Fatalf("installImage = %v, want installer:v1.13.7-libvirt", got)
+	if _, ok := spec["installImage"]; ok {
+		t.Fatalf("MachineClass must not contain unsupported installImage: %v", spec)
 	}
 	autoprovision := spec["autoprovision"].(map[string]any)
 	if got := autoprovision["providerid"]; got != "libvirt" {
@@ -49,6 +49,49 @@ func TestMachineClassUsesLibvirtAutoprovisionProviderData(t *testing.T) {
 	}
 }
 
+func TestMachineClassRejectsTalosInstallerDrift(t *testing.T) {
+	_, err := MachineClassDocuments(Config{
+		MachineClass: "unraid-cp",
+		TalosVersion: "v1.14.0-beta.1",
+		InstallImage: "ghcr.io/syscode-labs/talos-images/installer:v1.13.7-libvirt",
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match Talos version") {
+		t.Fatalf("MachineClassDocuments error = %v, want version/image drift error", err)
+	}
+}
+
+func TestMachineClassGeneratedYAMLMatchesUnraidFixtures(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		class string
+	}{
+		{name: "control-plane", class: "unraid-cp"},
+		{name: "worker", class: "unraid-worker"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			docs, err := MachineClassDocuments(Config{
+				MachineClass: tc.class,
+				TalosVersion: "v1.14.0-beta.1",
+			})
+			if err != nil {
+				t.Fatalf("MachineClassDocuments returned error: %v", err)
+			}
+
+			var rendered strings.Builder
+			if err := WriteYAML(&rendered, docs); err != nil {
+				t.Fatalf("WriteYAML returned error: %v", err)
+			}
+			fixture, err := os.ReadFile(filepath.Join("testdata", "machineclass-"+tc.name+".yaml"))
+			if err != nil {
+				t.Fatalf("read fixture: %v", err)
+			}
+			if rendered.String() != string(fixture) {
+				t.Fatalf("generated YAML differs from fixture:\n--- generated\n%s--- fixture\n%s", rendered.String(), fixture)
+			}
+		})
+	}
+}
+
 func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 	docs, err := ClusterDocuments(Config{
 		ClusterName:       "lab",
@@ -66,8 +109,9 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 	if got := docs[0]["name"]; got != "lab" {
 		t.Fatalf("cluster name = %v, want lab", got)
 	}
-	if _, ok := docs[0]["systemExtensions"]; ok {
-		t.Fatalf("systemExtensions should be omitted when none set, got %v", docs[0]["systemExtensions"])
+	extensions := docs[0]["systemExtensions"].([]string)
+	if len(extensions) != 1 || extensions[0] != "syscode-labs/talos-ext-firecracker" {
+		t.Fatalf("systemExtensions = %v, want syscode-labs/talos-ext-firecracker", extensions)
 	}
 	clusterPatches := docs[0]["patches"].([]map[string]any)
 	for _, want := range []string{
@@ -75,6 +119,7 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
 		"omni/patches/harbor-registry-mirror.yaml",
+		"omni/patches/imp-node-labels.yaml",
 	} {
 		found := false
 		for _, patch := range clusterPatches {
@@ -87,10 +132,21 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 			t.Fatalf("cluster patches missing %q: %v", want, clusterPatches)
 		}
 	}
+	var installImagePatch map[string]any
 	for _, patch := range clusterPatches {
-		if patch["name"] == "install-image" {
-			t.Fatalf("cluster must not patch install image; Omni does not treat it as organic image drift: %v", patch)
+		if patch["name"] == "custom-install-image" {
+			installImagePatch = patch
+			break
 		}
+	}
+	if installImagePatch == nil {
+		t.Fatalf("cluster patches must include install-image: %v", clusterPatches)
+	}
+	installInline := installImagePatch["inline"].(map[string]any)
+	machine := installInline["machine"].(map[string]any)
+	install := machine["install"].(map[string]any)
+	if got := install["image"]; got != "ghcr.io/syscode-labs/talos-images/installer:v1.13.7-libvirt" {
+		t.Fatalf("install image = %v, want v1.13.7 libvirt installer", got)
 	}
 
 	controlPlane := docs[1]
@@ -277,7 +333,6 @@ func TestWriteYAMLUsesMultiDocumentOutput(t *testing.T) {
 
 func TestPocketIDOIDCClientSQLUsesOmniCallbackAndConfidentialClient(t *testing.T) {
 	t.Setenv("OMNI_DOMAIN", "")
-	t.Setenv("OMNI_PUBLIC_DOMAIN", "")
 
 	sql, err := PocketIDOIDCClientSQL(Config{})
 	if err != nil {
@@ -296,7 +351,7 @@ func TestPocketIDOIDCClientSQLUsesOmniCallbackAndConfidentialClient(t *testing.T
 	}
 }
 
-func TestPocketIDOIDCClientSQLUsesEnvDomains(t *testing.T) {
+func TestPocketIDOIDCClientSQLUsesTailnetDomainOnly(t *testing.T) {
 	t.Setenv("OMNI_DOMAIN", "omni.lab.ts.net")
 	t.Setenv("OMNI_PUBLIC_DOMAIN", "omni.example.com")
 
@@ -305,7 +360,7 @@ func TestPocketIDOIDCClientSQLUsesEnvDomains(t *testing.T) {
 		t.Fatalf("PocketIDOIDCClientSQL returned error: %v", err)
 	}
 
-	want := `'["https://omni.lab.ts.net/oidc/consume","https://omni.example.com/oidc/consume"]'::jsonb`
+	want := `'["https://omni.lab.ts.net/oidc/consume"]'::jsonb`
 	if !strings.Contains(sql, want) {
 		t.Fatalf("SQL missing env callbacks %q:\n%s", want, sql)
 	}
@@ -395,7 +450,7 @@ func TestImageFactoryConfigUsesEnv(t *testing.T) {
 	}
 }
 
-func TestImageFactoryConfigEmitsCosignKeyWhenSet(t *testing.T) {
+func TestImageFactoryConfigDoesNotOverrideGlobalSignatureTrust(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "config.yaml")
 
 	err := ImageFactoryConfig(outputPath, Config{
@@ -414,8 +469,8 @@ func TestImageFactoryConfigEmitsCosignKeyWhenSet(t *testing.T) {
 		t.Fatalf("ReadFile image-factory config: %v", err)
 	}
 	config := string(configYAML)
-	if !strings.Contains(config, "containerSignature:\n  publicKeyFile: /keys/cosign.pub") {
-		t.Fatalf("image-factory config missing containerSignature.publicKeyFile:\n%s", config)
+	if strings.Contains(config, "containerSignature:") {
+		t.Fatalf("image-factory config must retain Sidero's keyless default trust:\n%s", config)
 	}
 }
 
@@ -426,6 +481,7 @@ func TestImageFactoryConfigEmitsReplacementExtensionManifest(t *testing.T) {
 		ImageFactoryExternalURL:       "https://factory.example.ts.net",
 		ImageFactoryRegistry:          "127.0.0.1:5000",
 		ImageFactorySigningKey:        "/keys/cache-signing.key",
+		ImageFactoryCosignKey:         "/keys/cosign.pub",
 		ImageFactoryExtensionManifest: "syscode-labs/talos-extensions-composite",
 	})
 	if err != nil {
@@ -437,8 +493,14 @@ func TestImageFactoryConfigEmitsReplacementExtensionManifest(t *testing.T) {
 		t.Fatalf("ReadFile image-factory config: %v", err)
 	}
 	config := string(configYAML)
-	if !strings.Contains(config, "extensionCatalog:\n  sources:\n    - name: firecracker\n      manifest:\n        registry: 127.0.0.1:5000\n        namespace: custom-image-factory\n        repository: syscode-labs/talos-extensions-composite") {
-		t.Fatalf("image-factory config missing replacement extension manifest:\n%s", configYAML)
+	for _, want := range []string{
+		"- name: sidero\n      manifest:\n        registry: ghcr.io\n        repository: siderolabs/extensions",
+		"- name: firecracker\n      manifest:\n        registry: 127.0.0.1:5000\n        repository: custom-image-factory/syscode-labs/talos-extensions-composite",
+		"publicKey:\n          file: /keys/cosign.pub",
+	} {
+		if !strings.Contains(config, want) {
+			t.Fatalf("image-factory config missing %q:\n%s", want, config)
+		}
 	}
 	if strings.Index(config, "artifacts:\n  core:\n    registry: ghcr.io\n  schematic:") > strings.Index(config, "extensionCatalog:") {
 		t.Fatalf("artifacts.schematic must not be nested under extensionCatalog:\n%s", config)

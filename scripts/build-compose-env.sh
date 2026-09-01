@@ -204,6 +204,9 @@ fi
 if [ "${OMNI_ENABLE_BREAK_GLASS_CONFIGS:-false}" = "true" ]; then
   OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --enable-break-glass-configs"
 fi
+if [ "${OMNI_ENABLE_TALOS_PRE_RELEASE_VERSIONS:-false}" = "true" ]; then
+  OMNI_EXTRA_ARGS_DEFAULT="${OMNI_EXTRA_ARGS_DEFAULT} --enable-talos-pre-release-versions"
+fi
 # Auto-accept the EULA on start so an Omni upgrade never needs a manual
 # browser click before omnictl/cluster provisioning can proceed again.
 if [ -n "${OMNI_EULA_ACCEPT_EMAIL:-}" ]; then
@@ -211,17 +214,8 @@ if [ -n "${OMNI_EULA_ACCEPT_EMAIL:-}" ]; then
 fi
 OMNI_EXTRA_ARGS="${OMNI_EXTRA_ARGS:-$OMNI_EXTRA_ARGS_DEFAULT}"
 CADDY_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN}}"
-# Only set public domain if explicitly configured — avoids generating a Caddy block with no cert
-CADDY_PUBLIC_DOMAIN="${OMNI_PUBLIC_DOMAIN:-}"
-# Caddy runs in a container; public certs are mounted at /opt/certs (not the host path).
-# Caddy obtains *.ts.net certs from host tailscaled via the mounted tailscaled socket.
-CADDY_CERTS_MOUNT="/opt/certs"
-CADDY_TS_CERT_PATH="${OMNI_TS_CERT_PATH:-${CADDY_CERTS_MOUNT}/tailscale.crt}"
-CADDY_TS_KEY_PATH="${OMNI_TS_KEY_PATH:-${CADDY_CERTS_MOUNT}/tailscale.key}"
-CADDY_MACHINE_API_CERT_PATH="${OMNI_MACHINE_API_CERT_PATH:-${CADDY_CERTS_MOUNT}/machine-api.crt}"
-CADDY_MACHINE_API_KEY_PATH="${OMNI_MACHINE_API_KEY_PATH:-${CADDY_CERTS_MOUNT}/machine-api.key}"
-CADDY_PUBLIC_CERT_PATH="${OMNI_PUBLIC_CERT_PATH:-${CADDY_CERTS_MOUNT}/public.crt}"
-CADDY_PUBLIC_KEY_PATH="${OMNI_PUBLIC_KEY_PATH:-${CADDY_CERTS_MOUNT}/public.key}"
+CADDY_TS_BIND_ADDR="${OMNI_TS_IP:-}"
+# Caddy obtains *.ts.net certificates from host tailscaled via the mounted socket.
 
 AUTH_COMBINED="${AUTH} ${OMNI_EXTRA_ARGS}"
 OMNI_SERVER_CERT_FILE="${OMNI_TLS_CERT_FILE:-${CERT_FILE}}"
@@ -250,13 +244,7 @@ SIDEROLINK_WIREGUARD_ADVERTISED_ADDR=${SIDEROLINK_WIREGUARD_ADVERTISED_ADDR}
 INITIAL_USER_EMAILS=${INITIAL_USER_EMAILS}
 TLS_MODE=${TLS_MODE}
 CADDY_TS_DOMAIN=${CADDY_TS_DOMAIN}
-CADDY_PUBLIC_DOMAIN=${CADDY_PUBLIC_DOMAIN}
-CADDY_TS_CERT_PATH=${CADDY_TS_CERT_PATH}
-CADDY_TS_KEY_PATH=${CADDY_TS_KEY_PATH}
-CADDY_MACHINE_API_CERT_PATH=${CADDY_MACHINE_API_CERT_PATH}
-CADDY_MACHINE_API_KEY_PATH=${CADDY_MACHINE_API_KEY_PATH}
-CADDY_PUBLIC_CERT_PATH=${CADDY_PUBLIC_CERT_PATH}
-CADDY_PUBLIC_KEY_PATH=${CADDY_PUBLIC_KEY_PATH}
+CADDY_TS_BIND_ADDR=${CADDY_TS_BIND_ADDR}
 EOV
 
 # AUTH may contain spaces and special chars — write it quoted so `source compose.env` is safe
