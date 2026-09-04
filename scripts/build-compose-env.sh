@@ -217,6 +217,28 @@ CADDY_TS_DOMAIN="${OMNI_TS_DOMAIN:-${OMNI_DOMAIN}}"
 CADDY_TS_BIND_ADDR="${OMNI_TS_IP:-}"
 # Caddy obtains *.ts.net certificates from host tailscaled via the mounted socket.
 
+GITHUB_RUNNER_ENABLED="${GITHUB_RUNNER_ENABLED:-false}"
+GITHUB_RUNNER_ENV_FILE="${OUT_DIR}/github-runner.env"
+if [ "$GITHUB_RUNNER_ENABLED" = "true" ]; then
+  : "${GITHUB_RUNNER_APP_ID:?GITHUB_RUNNER_APP_ID is required when GITHUB_RUNNER_ENABLED=true}"
+  : "${GITHUB_RUNNER_APP_PRIVATE_KEY_B64:?GITHUB_RUNNER_APP_PRIVATE_KEY_B64 is required when GITHUB_RUNNER_ENABLED=true}"
+  runner_private_key="$(printf '%s' "$GITHUB_RUNNER_APP_PRIVATE_KEY_B64" | base64 --decode)"
+  case "$runner_private_key" in
+    '-----BEGIN '*PRIVATE' KEY-----'*'-----END '*PRIVATE' KEY-----') ;;
+    *) echo "GITHUB_RUNNER_APP_PRIVATE_KEY_B64 does not contain a PEM private key" >&2; exit 1 ;;
+  esac
+  runner_private_key_escaped="${runner_private_key//$'\n'/\\n}"
+  {
+    printf 'APP_ID=%s\n' "$GITHUB_RUNNER_APP_ID"
+    printf 'APP_LOGIN=%s\n' "${GITHUB_RUNNER_APP_LOGIN:-syscode-labs}"
+    printf 'APP_PRIVATE_KEY=%s\n' "$runner_private_key_escaped"
+  } > "$GITHUB_RUNNER_ENV_FILE"
+  chmod 0600 "$GITHUB_RUNNER_ENV_FILE"
+  unset runner_private_key runner_private_key_escaped
+else
+  rm -f "$GITHUB_RUNNER_ENV_FILE"
+fi
+
 AUTH_COMBINED="${AUTH} ${OMNI_EXTRA_ARGS}"
 OMNI_SERVER_CERT_FILE="${OMNI_TLS_CERT_FILE:-${CERT_FILE}}"
 OMNI_SERVER_KEY_FILE="${OMNI_TLS_KEY_FILE:-${KEY_FILE}}"
@@ -245,6 +267,8 @@ INITIAL_USER_EMAILS=${INITIAL_USER_EMAILS}
 TLS_MODE=${TLS_MODE}
 CADDY_TS_DOMAIN=${CADDY_TS_DOMAIN}
 CADDY_TS_BIND_ADDR=${CADDY_TS_BIND_ADDR}
+GITHUB_RUNNER_ENABLED=${GITHUB_RUNNER_ENABLED}
+GITHUB_RUNNER_ENV_FILE=${GITHUB_RUNNER_ENV_FILE}
 EOV
 
 # AUTH may contain spaces and special chars — write it quoted so `source compose.env` is safe
