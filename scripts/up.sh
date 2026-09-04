@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/generated/compose.yaml"
 ENV_FILE="${ROOT_DIR}/generated/compose.env"
 OVERRIDE_FILE="${ROOT_DIR}/templates/compose.caddy.override.yaml"
+RUNNER_OVERRIDE_FILE="${ROOT_DIR}/templates/compose.runner.override.yaml"
 
 if [ ! -f "$COMPOSE_FILE" ]; then
   echo "Missing ${COMPOSE_FILE}; run ./scripts/render.sh first" >&2
@@ -29,9 +30,20 @@ if [ -f "$OVERRIDE_FILE" ]; then
   # Always include override; Caddy service is gated by compose profile.
   compose_files+=(-f "$OVERRIDE_FILE")
 fi
+if [ -f "$RUNNER_OVERRIDE_FILE" ]; then
+  compose_files+=(-f "$RUNNER_OVERRIDE_FILE")
+fi
 
+compose_profiles=()
 if [ "${TLS_MODE:-direct}" = "caddy-sni" ]; then
-  export COMPOSE_PROFILES="caddy-sni"
+  compose_profiles+=(caddy-sni)
+fi
+if [ "${GITHUB_RUNNER_ENABLED:-false}" = "true" ]; then
+  compose_profiles+=(github-runner)
+fi
+if [ "${#compose_profiles[@]}" -gt 0 ]; then
+  COMPOSE_PROFILES="$(IFS=,; echo "${compose_profiles[*]}")"
+  export COMPOSE_PROFILES
 fi
 
 "${compose_cmd[@]}" "${compose_files[@]}" --env-file "$ENV_FILE" up -d

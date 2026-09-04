@@ -1,0 +1,21 @@
+services:
+  github-runner:
+    profiles: [github-runner]
+    container_name: omni-runner
+    image: myoung34/github-runner:2.337.0@sha256:a7e687b775d573154261949fb875aa0e1949ae9c1688ce18a3d7f2e6b1b2c90f
+    restart: unless-stopped
+    env_file:
+      - ${GITHUB_RUNNER_ENV_FILE}
+    environment:
+      RUNNER_SCOPE: org
+      ORG_NAME: syscode-labs
+      RUNNER_NAME_PREFIX: omni-runner
+      RANDOM_RUNNER_SUFFIX: "true"
+      LABELS: omni-runner,unraid-release
+      UNSET_CONFIG_VARS: "true"
+      RUNNER_WORKDIR: /_work
+    volumes:
+      - github-runner-work:/_work
+
+volumes:
+  github-runner-work:

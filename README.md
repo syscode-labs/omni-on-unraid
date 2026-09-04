@@ -136,6 +136,15 @@ mise run ctr:shell
 
 ## Important
 
+### GitHub Actions runner
+
+Set `GITHUB_RUNNER_ENABLED=true` and the three `GITHUB_RUNNER_APP_*` values in
+the ignored `.env` to run an organization-scoped self-hosted runner inside the
+Omni VM. It registers with the `omni-runner` and `unraid-release` labels. The
+GitHub App private key is decoded into a mode `0600` generated environment file
+and removed from the runner process environment after registration. The runner
+does not mount the host Docker socket.
+
 - `OMNI_LIBVIRT_URI` must point to your actual libvirt endpoint.
 - For tailnet-only TLS, set `OMNI_TLS_MODE=caddy-sni`, `OMNI_TS_DOMAIN`, and
   `OMNI_TS_IP` in `.env`.
