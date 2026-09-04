@@ -34,21 +34,19 @@ if [ -f "$RUNNER_OVERRIDE_FILE" ]; then
   compose_files+=(-f "$RUNNER_OVERRIDE_FILE")
 fi
 
-compose_profiles=()
+compose_profile_args=()
 if [ "${TLS_MODE:-direct}" = "caddy-sni" ]; then
-  compose_profiles+=(caddy-sni)
+  compose_profile_args+=(--profile caddy-sni)
 fi
 if [ "${GITHUB_RUNNER_ENABLED:-false}" = "true" ]; then
-  compose_profiles+=(github-runner)
-fi
-if [ "${#compose_profiles[@]}" -gt 0 ]; then
-  COMPOSE_PROFILES="$(IFS=,; echo "${compose_profiles[*]}")"
-  export COMPOSE_PROFILES
+  compose_profile_args+=(--profile github-runner)
 fi
 
-"${compose_cmd[@]}" "${compose_files[@]}" --env-file "$ENV_FILE" up -d
+# Pass profiles as command-line arguments because sudo does not preserve
+# COMPOSE_PROFILES from the caller's environment.
+"${compose_cmd[@]}" "${compose_files[@]}" "${compose_profile_args[@]}" --env-file "$ENV_FILE" up -d
 
 if [ "${TLS_MODE:-direct}" = "caddy-sni" ]; then
   # Caddy reads a bind-mounted generated Caddyfile, so recreate it to apply changes.
-  "${compose_cmd[@]}" "${compose_files[@]}" --env-file "$ENV_FILE" up -d --force-recreate caddy
+  "${compose_cmd[@]}" "${compose_files[@]}" "${compose_profile_args[@]}" --env-file "$ENV_FILE" up -d --force-recreate caddy
 fi
