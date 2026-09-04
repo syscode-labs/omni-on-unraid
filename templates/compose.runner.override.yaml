@@ -9,13 +9,16 @@ services:
     environment:
       RUNNER_SCOPE: org
       ORG_NAME: syscode-labs
-      RUNNER_NAME_PREFIX: omni-runner
-      RANDOM_RUNNER_SUFFIX: "true"
+      RUNNER_NAME: omni-runner
       LABELS: omni-runner,unraid-release
+      CONFIGURED_ACTIONS_RUNNER_FILES_DIR: /runner-data
+      DISABLE_AUTOMATIC_DEREGISTRATION: "true"
       UNSET_CONFIG_VARS: "true"
       RUNNER_WORKDIR: /_work
     volumes:
       - github-runner-work:/_work
+      - github-runner-config:/runner-data
 
 volumes:
   github-runner-work:
+  github-runner-config:
