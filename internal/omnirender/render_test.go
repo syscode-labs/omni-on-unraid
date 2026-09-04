@@ -60,6 +60,39 @@ func TestMachineClassRejectsTalosInstallerDrift(t *testing.T) {
 	}
 }
 
+func TestClusterUsesImmutableLibvirtInstallerDigest(t *testing.T) {
+	const image = "ghcr.io/syscode-labs/talos-images/installer:v1.14.0-rc.1-libvirt@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	docs, err := ClusterDocuments(Config{
+		TalosVersion:      "v1.14.0-rc.1",
+		KubernetesVersion: "v1.36.3",
+		InstallImage:      image,
+	})
+	if err != nil {
+		t.Fatalf("ClusterDocuments returned error: %v", err)
+	}
+	for _, patch := range docs[0]["patches"].([]map[string]any) {
+		if patch["name"] == "custom-install-image" {
+			install := patch["inline"].(map[string]any)["machine"].(map[string]any)["install"].(map[string]any)
+			if got := install["image"]; got != image {
+				t.Fatalf("install image = %v, want immutable artifact %q", got, image)
+			}
+			return
+		}
+	}
+	t.Fatal("cluster patches missing custom-install-image")
+}
+
+func TestClusterRejectsMalformedImmutableInstallerDigest(t *testing.T) {
+	_, err := ClusterDocuments(Config{
+		TalosVersion:      "v1.14.0-rc.1",
+		KubernetesVersion: "v1.36.3",
+		InstallImage:      "ghcr.io/syscode-labs/talos-images/installer:v1.14.0-rc.1-libvirt@sha256:not-a-digest",
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match Talos version") {
+		t.Fatalf("ClusterDocuments error = %v, want immutable installer validation error", err)
+	}
+}
+
 func TestMachineClassGeneratedYAMLMatchesUnraidFixtures(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

@@ -144,8 +144,23 @@ docker compose -f omni/provider/docker-compose.yml --env-file .env up -d
 '''
 
 [tasks."omni:provider:status"]
-description = "Show Omni libvirt infrastructure provider status"
-run = "docker compose -f omni/provider/docker-compose.yml --env-file .env ps"
+description = "Verify the Omni libvirt infrastructure provider is running"
+run = '''
+set -euo pipefail
+docker compose -f omni/provider/docker-compose.yml --env-file .env ps --status running
+# A successful compose query alone is not readiness: require at least one
+# running provider container before an unattended release can proceed.
+docker compose -f omni/provider/docker-compose.yml --env-file .env ps --status running --services | grep -q .
+'''
+
+[tasks."omni:release:preflight"]
+description = "Run read-only provider, render, validate, and template dry-run gates"
+depends = ["omni:version-check", "omni:provider:status", "omni:machineclass:render", "omni:cluster:render"]
+run = '''
+set -euo pipefail
+omnictl cluster template validate --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
+omnictl cluster template sync --dry-run --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
+'''
 
 [tasks."omni:provider:logs"]
 description = "Tail Omni libvirt infrastructure provider logs"
@@ -211,29 +226,41 @@ rsync -a --delete omni/patches/ generated/omni/patches/
 description = "Store the Tailscale OAuth secret in Omni before cluster provisioning"
 run = "./omni/scripts/inject-tailscale-oauth.sh"
 
+# The mutation phase intentionally starts only after omni:release:preflight
+# validated the rendered template and ran sync --dry-run.
+[tasks."omni:cluster:reconcile"]
+description = "Reconcile explicitly scoped stale cluster-machine links"
+run = '''
+set -euo pipefail
+./scripts/reconcile-cluster-machines.sh "${CLUSTER_NAME:-unraid-lab}"
+'''
+
 [tasks."omni:cluster:apply"]
-description = "Validate, sync, and wait on Omni cluster template"
+description = "Sync an already validated Omni cluster template"
 depends = ["omni:version-check", "omni:cluster:render"]
 run = '''
 # --allowed-dir scopes which files omnictl may read patch refs from.
-# The dry-run rehearsal is the last cheap gate before machines are touched:
-# it surfaces a rejected document (a version-incompatible patch, say) without
-# applying anything. devbox's cluster:apply has always carried both; this task
-# did not, so the two paths differed in safety as well as in source.
-# omnictl v1.9.3 resolves patch `file:` paths relative to the template file's
-# parent dir (generated/), not the CWD — so the patch refs under omni/ need that
-# dir allowed too, else validate/sync fail with "path escapes from parent".
-# Reconcile first: purge cluster members Omni is tearing down but can no longer
-# reach (maintenance deadlock), and fail loudly if any machine set still hashes
-# empty config. This runs *after* render so CLUSTER_NAME is resolved, before the
-# template sync touches the cluster.
-reconcile_cluster="${CLUSTER_NAME:-unraid-lab}"
-./scripts/reconcile-cluster-machines.sh "$reconcile_cluster"
 omnictl cluster template validate --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
 omnictl cluster template sync --dry-run --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
 omnictl cluster template sync --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml --verbose
 omnictl cluster template status -f generated/cluster.yaml
 '''
+
+[tasks."omni:release:apply"]
+description = "Apply the validated Unraid release in provider, machineclass, cluster order"
+run = '''
+set -euo pipefail
+mise run omni:release:preflight
+mise run omni:provider:apply
+mise run omni:provider:status
+mise run omni:machineclass:apply
+mise run omni:cluster:reconcile
+mise run omni:cluster:apply
+'''
+
+[tasks."omni:release:health"]
+description = "Boundedly verify Omni, Talos, and Kubernetes post-rollout health"
+run = "./scripts/verify-release-health.sh"
 
 [tasks."omni:cluster:status"]
 description = "Show Omni cluster template status"
