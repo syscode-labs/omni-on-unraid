@@ -1,0 +1,76 @@
+name: Talos release receiver
+
+on:
+  repository_dispatch:
+    types: [talos-release-request]
+
+concurrency:
+  group: talos-release-unraid-${{ github.event.client_payload.release_id }}
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    if: github.event.client_payload.source_repo == 'syscode-labs/talos-release-controller'
+    runs-on: [self-hosted, unraid-release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate requested version
+        env:
+          TALOS_VERSION: ${{ github.event.client_payload.talos_version }}
+          KUBERNETES_VERSION: ${{ github.event.client_payload.kubernetes_version }}
+        run: |
+          set -euo pipefail
+          [[ "$TALOS_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]
+          [[ "$KUBERNETES_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]
+      - name: Resolve and render the approved release
+        env:
+          CLUSTER_NAME: unraid-lab
+          VERSIONS_YAML_URL: https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/${{ github.event.client_payload.source_sha }}/omni/versions.yaml
+        run: |
+          set -euo pipefail
+          eval "$(./scripts/resolve-cluster-versions.sh unraid-lab)"
+          test "$TALOS_VERSION" = "${{ github.event.client_payload.talos_version }}"
+          test "$KUBERNETES_VERSION" = "${{ github.event.client_payload.kubernetes_version }}"
+          mise run omni:machineclass:render
+          mise run omni:cluster:render
+      - name: Run guarded rollout
+        env:
+          CLUSTER_NAME: unraid-lab
+          VERSIONS_YAML_URL: https://raw.githubusercontent.com/syscode-labs/syscode-homelab-gitops-apps/${{ github.event.client_payload.source_sha }}/omni/versions.yaml
+        run: mise run omni:cluster:apply
+
+  report:
+    if: always() && github.event.client_payload.source_repo == 'syscode-labs/syscode-homelab-gitops-apps'
+    needs: rollout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_CONTROLLER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_CONTROLLER_APP_PRIVATE_KEY }}
+          owner: syscode-labs
+          repositories: talos-release-controller
+      - name: Report result
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_ID: ${{ github.event.client_payload.release_id }}
+          OUTCOME: ${{ needs.rollout.result == 'success' && 'success' || 'failure' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > result.json
+          import json, os
+          print(json.dumps({
+              'release_id': os.environ['RELEASE_ID'],
+              'provider': 'omni-on-unraid',
+              'outcome': os.environ['OUTCOME'],
+              'run_id': int(os.environ['GITHUB_RUN_ID']),
+              'details_url': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
+          }))
+          PY
+          python3 - <<'PY' > dispatch.json
+          import json
+          result = json.load(open('result.json', encoding='utf-8'))
+          print(json.dumps({'event_type': 'talos-release-result', 'client_payload': result}))
+          PY
+          gh api repos/syscode-labs/talos-release-controller/dispatches --method POST --input dispatch.json
