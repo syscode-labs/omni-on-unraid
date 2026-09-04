@@ -19,7 +19,9 @@ jobs:
     # sender_repo is a controller contract field, not sender authentication.
     # Validate the complete immutable request before any side effect.
     if: github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller'
-    runs-on: [self-hosted, omni-runner]
+    runs-on:
+      group: omni-runner
+      labels: self-hosted
     steps:
       - uses: actions/checkout@v4
       - name: Validate controller request and immutable artifact
