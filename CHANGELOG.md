@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.3.0](https://github.com/syscode-labs/omni-on-unraid/compare/v0.2.1...v0.3.0) (2026-09-05)
+
+
+### Features
+
+* add Omni GitHub Actions runner ([#23](https://github.com/syscode-labs/omni-on-unraid/issues/23)) ([ba380d6](https://github.com/syscode-labs/omni-on-unraid/commit/ba380d658a77355bec3ccd063ab1b89fdfc5f473))
+* add unattended Unraid release receiver ([74c3e0f](https://github.com/syscode-labs/omni-on-unraid/commit/74c3e0f65e62dee1d0fb82c503e420aabda4594d))
+* add unattended Unraid release receiver ([082c040](https://github.com/syscode-labs/omni-on-unraid/commit/082c040546b726bbb7c212c0c0cd0d48866c7382))
+* **image-factory:** deploy on-prem registry + tailnet sidecar with signed composite catalog ([0f252e8](https://github.com/syscode-labs/omni-on-unraid/commit/0f252e8c847a01684eb85d272f824164791026d0))
+* support break-glass configs ([84ba174](https://github.com/syscode-labs/omni-on-unraid/commit/84ba17479febaa1c1d6a0972e2137774f7a44b3f))
+* support break-glass configs ([2d4b8d3](https://github.com/syscode-labs/omni-on-unraid/commit/2d4b8d3bd92f3025f066fe5bd297286135102c2d))
+* **terraform:** manage Omni provider NAT NIC ([ffdcefa](https://github.com/syscode-labs/omni-on-unraid/commit/ffdcefad2efb0c0429c052674eff051d5a63ad2f))
+
+
+### Bug Fixes
+
+* activate payload release clients ([2466199](https://github.com/syscode-labs/omni-on-unraid/commit/2466199804251f79e97ab08df076e57f1046ae1c))
+* activate payload release clients ([08c66b9](https://github.com/syscode-labs/omni-on-unraid/commit/08c66b9d3c172d361acb039749dba158aa42978d))
+* bind Caddy SNI Kubernetes proxy locally ([97b5a30](https://github.com/syscode-labs/omni-on-unraid/commit/97b5a30fe2313383844c57dc21ce693c01c778ed))
+* bind Caddy SNI Kubernetes proxy locally ([7c5da6d](https://github.com/syscode-labs/omni-on-unraid/commit/7c5da6d3db4c00133f1494256aef3aa9d18da633))
+* classify pre-mutation release failures ([f121ba4](https://github.com/syscode-labs/omni-on-unraid/commit/f121ba4e32d57dc1f50cd882553a5565162c5c8f))
+* execute inline mise tasks with bash ([5bdeaa8](https://github.com/syscode-labs/omni-on-unraid/commit/5bdeaa8102a8a8827100a49d690193bf87667855))
+* execute inline mise tasks with Bash ([dbc4098](https://github.com/syscode-labs/omni-on-unraid/commit/dbc409848229410093e43ac0ed89d1de4a7705d2))
+* **factory:** route libvirt nodes to image factory ([2a718a2](https://github.com/syscode-labs/omni-on-unraid/commit/2a718a2dc9e2d6d4dec0ca8d1b7adc73734f8eeb))
+* harden Unraid release dispatch ([b165135](https://github.com/syscode-labs/omni-on-unraid/commit/b1651352995e0283d7284bcdb71553c0f4d9a458))
+* install custom installer via cluster config patch ([47af661](https://github.com/syscode-labs/omni-on-unraid/commit/47af661270fc21d7622f88d2637fdfdf2ead1a1b))
+* install custom installer via cluster config patch ([ea389d5](https://github.com/syscode-labs/omni-on-unraid/commit/ea389d5c6d1b09580cf3a20297dc4cba83fb373f))
+* install Go for release receiver ([69a5bba](https://github.com/syscode-labs/omni-on-unraid/commit/69a5bba21df8a74e2c1b28fab9c5588a472d42b3))
+* install Go for release receiver ([9c3e6fe](https://github.com/syscode-labs/omni-on-unraid/commit/9c3e6fe7f426efa5ec90be2de6b1a07573c389ed))
+* install mise before release runtime check ([4d22ce3](https://github.com/syscode-labs/omni-on-unraid/commit/4d22ce3d70a65044f729b67410c4100880a459f0))
+* install mise before release runtime check ([95e337b](https://github.com/syscode-labs/omni-on-unraid/commit/95e337ba32f691082e9b101f907d2445638c9468))
+* make provider status compatible with mise ([80dd48b](https://github.com/syscode-labs/omni-on-unraid/commit/80dd48b28e7f185a91ffb854a6ac19a0882d1dcf))
+* make provider status compatible with mise ([f2dd44f](https://github.com/syscode-labs/omni-on-unraid/commit/f2dd44fd79611cf5215f33a54d70e13729ce78cd))
+* **omni:** persist Imp node opt-in label ([bb4852c](https://github.com/syscode-labs/omni-on-unraid/commit/bb4852cca22bf35f56a9e67100856906f5f6137a))
+* **omni:** persist Imp node opt-in label ([7a44454](https://github.com/syscode-labs/omni-on-unraid/commit/7a4445437bd20cad8edfb56709a0e28c5d84a15d))
+* **omni:** restore Imp node label patch ([#21](https://github.com/syscode-labs/omni-on-unraid/issues/21)) ([b41285d](https://github.com/syscode-labs/omni-on-unraid/commit/b41285df5b07877c3093bb4b1decfd185f752bc9))
+* **omni:** validate configured provider artifact ([73c532e](https://github.com/syscode-labs/omni-on-unraid/commit/73c532e0c85788f2a99ba1e210bafdb82af02984))
+* **omni:** validate configured provider artifact ([9eb912b](https://github.com/syscode-labs/omni-on-unraid/commit/9eb912b090855171f0b650e08324e9394f57c3b4))
+* pass Compose profiles through sudo ([#24](https://github.com/syscode-labs/omni-on-unraid/issues/24)) ([d13ee51](https://github.com/syscode-labs/omni-on-unraid/commit/d13ee516f4620b28b50750e58e4e96cacbf6db8a))
+* persist Omni runner identity ([#25](https://github.com/syscode-labs/omni-on-unraid/issues/25)) ([d2f4745](https://github.com/syscode-labs/omni-on-unraid/commit/d2f47450504b5a096a5bc4557a409286394ed4b3))
+* preserve 1.13 runtime defaults on Talos 1.14 ([d032dd2](https://github.com/syscode-labs/omni-on-unraid/commit/d032dd28f706ac290d18cfc15134e99fa348e2ab))
+* preserve 1.13 runtime defaults on Talos 1.14 ([202539a](https://github.com/syscode-labs/omni-on-unraid/commit/202539a9c99a722f3ec6f210cbefd52d497cbcb6))
+* **release:** bind Unraid rollout to live provider runtime ([96a964c](https://github.com/syscode-labs/omni-on-unraid/commit/96a964c4a2ce71bf55c6c07a598fc281829226cb))
+* remove stale mise runtime assertion ([668d072](https://github.com/syscode-labs/omni-on-unraid/commit/668d072d873d5354e5be8856e8c4ae2492ab45c0))
+* remove stale mise runtime assertion ([29974ac](https://github.com/syscode-labs/omni-on-unraid/commit/29974ac567bb0a21470d0fbc5541b45497874e58))
+* report release attempt recovery state ([0d8c56b](https://github.com/syscode-labs/omni-on-unraid/commit/0d8c56bb6694e2b750a46ee2e2f18f79332db1bb))
+* run inline mise tasks with bash ([63db14b](https://github.com/syscode-labs/omni-on-unraid/commit/63db14b5af31497980cc54249b2741c46048e5ce))
+* select omni-runner by runner group ([ee83075](https://github.com/syscode-labs/omni-on-unraid/commit/ee830758e7cf60cdd7205e8ae2be6a88a351d11c))
+
 ## [0.2.1](https://github.com/syscode-labs/omni-on-unraid/compare/v0.2.0...v0.2.1) (2026-08-09)
 
 
