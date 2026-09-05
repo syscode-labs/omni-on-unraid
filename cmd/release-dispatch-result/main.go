@@ -24,7 +24,7 @@ func main() {
 		fail(fmt.Errorf("parse GITHUB_RUN_ID: %w", err))
 	}
 	url := os.Getenv("GITHUB_SERVER_URL") + "/" + os.Getenv("GITHUB_REPOSITORY") + "/actions/runs/" + os.Getenv("GITHUB_RUN_ID")
-	result, err := releasedispatch.Result(request, os.Getenv("OUTCOME"), runID, url)
+	result, err := releasedispatch.Result(request, os.Getenv("OUTCOME"), runID, url, os.Getenv("ATTEMPT_STATE"))
 	if err != nil {
 		fail(err)
 	}
