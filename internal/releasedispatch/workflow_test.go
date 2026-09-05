@@ -36,6 +36,9 @@ func TestReleaseDispatchKeepsDedicatedRunnerAndHostedCallback(t *testing.T) {
 	if strings.Contains(string(miseConfig), "{{.State.Running}}") {
 		t.Fatal("provider status task must not embed a Docker Go template that mise parses as its own template")
 	}
+	if strings.Contains(string(miseConfig), "shell = \"bash\"") || strings.Count(string(miseConfig), "shell = \"bash -c\"") < 9 {
+		t.Fatal("inline mise tasks using pipefail must invoke Bash with command execution semantics")
+	}
 	const runtimeInstall = "mise install omnictl yq \"kubectl@${RELEASE_KUBERNETES_VERSION}\" \"talosctl@${RELEASE_TALOS_VERSION}\""
 	if strings.Index(text, miseSetup) > strings.Index(text, runtimeInstall) {
 		t.Fatal("mise must be installed before the rollout runtime receipt uses it")
