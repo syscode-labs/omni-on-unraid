@@ -153,9 +153,13 @@ docker compose -f omni/provider/docker-compose.yml --env-file .env ps --status r
 docker compose -f omni/provider/docker-compose.yml --env-file .env ps --status running --services | grep -q .
 '''
 
+[tasks."omni:provider:artifact-check"]
+description = "Verify the exact configured Omni libvirt provider image is remotely available"
+run = "./scripts/check-provider-artifact.sh"
+
 [tasks."omni:release:preflight"]
 description = "Run read-only provider, render, validate, and template dry-run gates"
-depends = ["omni:version-check", "omni:provider:status", "omni:machineclass:render", "omni:cluster:render"]
+depends = ["omni:version-check", "omni:provider:status", "omni:provider:artifact-check", "omni:machineclass:render", "omni:cluster:render"]
 run = '''
 set -euo pipefail
 omnictl cluster template validate --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
