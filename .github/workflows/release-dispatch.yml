@@ -57,11 +57,17 @@ jobs:
           # Keep the release runtime explicit: `mise install` alone would
           # install unrelated configuration, including OpenTofu.
           mise install omnictl yq "kubectl@${RELEASE_KUBERNETES_VERSION}" "talosctl@${RELEASE_TALOS_VERSION}"
+          # Installation does not activate payload-derived versions. Export
+          # these for every later step and its nested mise task graph.
+          export MISE_TALOSCTL_VERSION="$RELEASE_TALOS_VERSION"
+          export MISE_KUBECTL_VERSION="$RELEASE_KUBERNETES_VERSION"
+          printf 'MISE_TALOSCTL_VERSION=%s\n' "$MISE_TALOSCTL_VERSION" >> "$GITHUB_ENV"
+          printf 'MISE_KUBECTL_VERSION=%s\n' "$MISE_KUBECTL_VERSION" >> "$GITHUB_ENV"
           mise exec -- go version
           mise exec -- omnictl --version
           mise exec -- yq --version
-          mise exec -- kubectl version --client
-          mise exec -- talosctl version --client
+          mise exec "kubectl@${RELEASE_KUBERNETES_VERSION}" -- kubectl version --client
+          mise exec "talosctl@${RELEASE_TALOS_VERSION}" -- talosctl version --client
           test -x "$HOME/.local/bin/mise"
       - name: Check durable release claim
         id: release-claim
@@ -90,6 +96,8 @@ jobs:
           CLUSTER_NAME=unraid-lab \
           VERSIONS_YAML_URL="https://raw.githubusercontent.com/${RELEASE_SOURCE_REPO}/${RELEASE_SOURCE_SHA}/omni/versions.yaml" \
           OMNI_INSTALL_IMAGE="$RELEASE_INSTALL_IMAGE" \
+          MISE_TALOSCTL_VERSION="$RELEASE_TALOS_VERSION" \
+          MISE_KUBECTL_VERSION="$RELEASE_KUBERNETES_VERSION" \
           mise exec -- mise run omni:release:preflight
       - name: Persist release claim before mutation
         if: steps.release-claim.outputs.cache-hit != 'true'
@@ -118,6 +126,8 @@ jobs:
           CLUSTER_NAME=unraid-lab \
           VERSIONS_YAML_URL="https://raw.githubusercontent.com/${RELEASE_SOURCE_REPO}/${RELEASE_SOURCE_SHA}/omni/versions.yaml" \
           OMNI_INSTALL_IMAGE="$RELEASE_INSTALL_IMAGE" \
+          MISE_TALOSCTL_VERSION="$RELEASE_TALOS_VERSION" \
+          MISE_KUBECTL_VERSION="$RELEASE_KUBERNETES_VERSION" \
           mise exec -- mise run omni:release:apply
       - name: Verify Talos, Omni, and Kubernetes convergence
         if: steps.release-claim.outputs.cache-hit != 'true'
@@ -131,6 +141,8 @@ jobs:
           CLUSTER_NAME=unraid-lab \
           TALOS_VERSION="$RELEASE_TALOS_VERSION" \
           KUBERNETES_VERSION="$RELEASE_KUBERNETES_VERSION" \
+          MISE_TALOSCTL_VERSION="$RELEASE_TALOS_VERSION" \
+          MISE_KUBECTL_VERSION="$RELEASE_KUBERNETES_VERSION" \
           mise exec -- mise run omni:release:health
 
   report:

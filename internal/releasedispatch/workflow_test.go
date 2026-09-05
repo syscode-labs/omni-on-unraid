@@ -33,8 +33,26 @@ func TestReleaseDispatchKeepsDedicatedRunnerAndHostedCallback(t *testing.T) {
 	if strings.Index(text, "cat \"$validated\" >> \"$GITHUB_ENV\"") > strings.Index(text, runtimeInstall) {
 		t.Fatal("the runtime receipt must run after validated release versions are exported")
 	}
-	if !strings.Contains(text, runtimeInstall) || !strings.Contains(text, "mise exec -- talosctl version --client") {
-		t.Fatal("private rollout runner must install and verify the exact non-OpenTofu release runtime")
+	if !strings.Contains(text, runtimeInstall) ||
+		!strings.Contains(text, "mise exec \"kubectl@${RELEASE_KUBERNETES_VERSION}\" -- kubectl version --client") ||
+		!strings.Contains(text, "mise exec \"talosctl@${RELEASE_TALOS_VERSION}\" -- talosctl version --client") {
+		t.Fatal("private rollout runner must install and execute the exact non-OpenTofu release runtime")
+	}
+	for _, selection := range []string{
+		"MISE_TALOSCTL_VERSION=\"$RELEASE_TALOS_VERSION\"",
+		"MISE_KUBECTL_VERSION=\"$RELEASE_KUBERNETES_VERSION\"",
+	} {
+		if strings.Count(text, selection) < 4 {
+			t.Fatalf("payload-derived runtime selection must cover the receipt and every release stage: %q", selection)
+		}
+	}
+	for _, persisted := range []string{
+		"printf 'MISE_TALOSCTL_VERSION=%s\\n' \"$MISE_TALOSCTL_VERSION\" >> \"$GITHUB_ENV\"",
+		"printf 'MISE_KUBECTL_VERSION=%s\\n' \"$MISE_KUBECTL_VERSION\" >> \"$GITHUB_ENV\"",
+	} {
+		if strings.Count(text, persisted) != 1 {
+			t.Fatalf("payload-derived runtime selection must persist for later workflow steps: %q", persisted)
+		}
 	}
 	for _, stage := range []string{"preflight", "apply", "health"} {
 		if strings.Count(text, "mise exec -- mise run omni:release:"+stage) != 1 {
