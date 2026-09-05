@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -79,6 +80,9 @@ func (c Config) withDefaults() Config {
 		c.NetworkName = "default"
 	}
 	if c.InstallImage == "" {
+		c.InstallImage = os.Getenv("OMNI_INSTALL_IMAGE")
+	}
+	if c.InstallImage == "" {
 		// Runtime installer. Tag tracks the Talos version so the two never drift.
 		// -libvirt variant: same custom exts (incl. talos-ext-firecracker) plus
 		// qemu-guest-agent, which this repo's libvirt-only provider needs.
@@ -97,8 +101,19 @@ const talosInstallerRepository = "ghcr.io/syscode-labs/talos-images/installer"
 
 const firecrackerExtensionImage = "syscode-labs/talos-ext-firecracker"
 
+var immutableDigestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
 func libvirtInstallerImage(talosVersion string) string {
 	return talosInstallerRepository + ":" + talosVersion + "-libvirt"
+}
+
+func validLibvirtInstallerImage(image, talosVersion string) bool {
+	expected := libvirtInstallerImage(talosVersion)
+	if image == expected {
+		return true
+	}
+	ref, digest, found := strings.Cut(image, "@")
+	return found && ref == expected && immutableDigestRE.MatchString(digest)
 }
 
 func PocketIDOIDCClientSQL(config Config) (string, error) {
@@ -449,8 +464,8 @@ func MachineClassDocuments(config Config) ([]map[string]any, error) {
 	if err := requireVersion("talos version", "talos-version", config.TalosVersion); err != nil {
 		return nil, err
 	}
-	if want := libvirtInstallerImage(config.TalosVersion); config.InstallImage != want {
-		return nil, fmt.Errorf("install image %q does not match Talos version %q; want %q", config.InstallImage, config.TalosVersion, want)
+	if !validLibvirtInstallerImage(config.InstallImage, config.TalosVersion) {
+		return nil, fmt.Errorf("install image %q does not match Talos version %q; want %q or its immutable sha256 digest", config.InstallImage, config.TalosVersion, libvirtInstallerImage(config.TalosVersion))
 	}
 
 	return []map[string]any{
@@ -477,6 +492,9 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 	}
 	if err := requireVersion("kubernetes version", "kubernetes-version", config.KubernetesVersion); err != nil {
 		return nil, err
+	}
+	if !validLibvirtInstallerImage(config.InstallImage, config.TalosVersion) {
+		return nil, fmt.Errorf("install image %q does not match Talos version %q; want %q or its immutable sha256 digest", config.InstallImage, config.TalosVersion, libvirtInstallerImage(config.TalosVersion))
 	}
 
 	clusterPatches, err := clusterPatchFiles(config.TalosVersion)

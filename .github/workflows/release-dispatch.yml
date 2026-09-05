@@ -1,0 +1,106 @@
+name: Talos release receiver
+
+on:
+  repository_dispatch:
+    types: [talos-release-request]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: talos-release-unraid-${{ github.event.client_payload.release_id }}
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    outputs:
+      duplicate_delivery: ${{ steps.release-claim.outputs.cache-hit }}
+    # sender_repo is a controller contract field, not sender authentication.
+    # Validate the complete immutable request before any side effect.
+    if: github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller'
+    runs-on:
+      group: omni-runner
+      labels: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate controller request and immutable artifact
+        id: validate
+        env:
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          set -euo pipefail
+          validated="$(mktemp)"
+          trap 'rm -f "$validated"' EXIT
+          printf '%s' "$PAYLOAD" | go run ./cmd/release-dispatch-validate > "$validated"
+          cat "$validated" >> "$GITHUB_ENV"
+          release_id="$(grep '^RELEASE_ID=' "$validated" | cut -d= -f2-)"
+          printf 'release_id=%s\n' "$release_id" >> "$GITHUB_OUTPUT"
+      - name: Check durable release claim
+        id: release-claim
+        uses: actions/cache/restore@v4
+        with:
+          path: .release-dispatch/${{ steps.validate.outputs.release_id }}.json
+          key: unraid-release-${{ steps.validate.outputs.release_id }}
+          lookup-only: true
+      - name: Reject a previously claimed release
+        if: steps.release-claim.outputs.cache-hit == 'true'
+        run: |
+          echo "release $RELEASE_ID was already claimed; refusing to repeat destructive work" >&2
+          exit 1
+      - name: Run non-mutating release preflight
+        if: steps.release-claim.outputs.cache-hit != 'true'
+        run: |
+          CLUSTER_NAME=unraid-lab \
+          VERSIONS_YAML_URL="https://raw.githubusercontent.com/${RELEASE_SOURCE_REPO}/${RELEASE_SOURCE_SHA}/omni/versions.yaml" \
+          OMNI_INSTALL_IMAGE="$RELEASE_INSTALL_IMAGE" \
+          mise run omni:release:preflight
+      - name: Persist release claim before mutation
+        if: steps.release-claim.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p .release-dispatch
+          printf '{"release_id":"%s","build_run_id":%s}\n' "$RELEASE_ID" "$RELEASE_BUILD_RUN_ID" > ".release-dispatch/${RELEASE_ID}.json"
+      - name: Save durable release claim
+        if: steps.release-claim.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .release-dispatch/${{ steps.validate.outputs.release_id }}.json
+          key: unraid-release-${{ steps.validate.outputs.release_id }}
+      - name: Run guarded rollout
+        if: steps.release-claim.outputs.cache-hit != 'true'
+        run: |
+          CLUSTER_NAME=unraid-lab \
+          VERSIONS_YAML_URL="https://raw.githubusercontent.com/${RELEASE_SOURCE_REPO}/${RELEASE_SOURCE_SHA}/omni/versions.yaml" \
+          OMNI_INSTALL_IMAGE="$RELEASE_INSTALL_IMAGE" \
+          mise run omni:release:apply
+      - name: Verify Talos, Omni, and Kubernetes convergence
+        if: steps.release-claim.outputs.cache-hit != 'true'
+        run: |
+          CLUSTER_NAME=unraid-lab \
+          TALOS_VERSION="$RELEASE_TALOS_VERSION" \
+          KUBERNETES_VERSION="$RELEASE_KUBERNETES_VERSION" \
+          mise run omni:release:health
+
+  report:
+    if: always() && github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller' && needs.rollout.outputs.duplicate_delivery != 'true'
+    needs: rollout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_CONTROLLER_APP_ID }}
+          private-key: ${{ secrets.RELEASE_CONTROLLER_APP_PRIVATE_KEY }}
+          owner: syscode-labs
+          repositories: talos-release-controller
+      - name: Report correlated result
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          OUTCOME: ${{ needs.rollout.result == 'success' && 'success' || 'failure' }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PAYLOAD" | go run ./cmd/release-dispatch-result > dispatch.json
+          gh api repos/syscode-labs/talos-release-controller/dispatches --method POST --input dispatch.json
