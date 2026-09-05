@@ -136,21 +136,24 @@ description = "Build local GoReleaser snapshot artifacts"
 run = "goreleaser release --snapshot --clean"
 
 [tasks."omni:provider:apply"]
-description = "Start Omni libvirt infrastructure provider via Docker Compose"
+description = "Apply provider registration while preserving the live Compose-owned provider"
 run = '''
 omnictl apply -f omni/provider/infra-provider.yaml
 go run ./cmd/omni-render provider-config --output generated/provider/libvirt-config.yaml
-docker compose -f omni/provider/docker-compose.yml --env-file .env up -d
+# The release runner must not recreate a second provider from its checkout.
+# The existing provider is a host-owned Compose service and is checked below.
+mise run omni:provider:status
 '''
 
 [tasks."omni:provider:status"]
 description = "Verify the Omni libvirt infrastructure provider is running"
 run = '''
 set -euo pipefail
-docker compose -f omni/provider/docker-compose.yml --env-file .env ps --status running
-# A successful compose query alone is not readiness: require at least one
-# running provider container before an unattended release can proceed.
-docker compose -f omni/provider/docker-compose.yml --env-file .env ps --status running --services | grep -q .
+container="${OMNI_PROVIDER_CONTAINER:-omni-infra-provider-libvirt}"
+expected_project="${OMNI_PROVIDER_PROJECT_NAME:-omni-libvirt-provider}"
+expected_compose_file="${OMNI_PROVIDER_COMPOSE_FILE:-/opt/omni/omni/provider/docker-compose.yml}"
+docker inspect --format '{{.State.Running}} {{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "com.docker.compose.project.config_files"}}' "$container" \
+  | grep -Fqx "true $expected_project $expected_compose_file"
 '''
 
 [tasks."omni:provider:artifact-check"]

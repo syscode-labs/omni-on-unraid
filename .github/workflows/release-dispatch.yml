@@ -28,11 +28,9 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install: false
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Verify mise-managed Go runtime
+      # Bootstrap only the repository-pinned Go toolchain needed to validate
+      # untrusted dispatch input; payload-derived clients are installed later.
+      - name: Install validator Go runtime
         run: |
           set -euo pipefail
           command -v mise
@@ -47,10 +45,24 @@ jobs:
           set -euo pipefail
           validated="$(mktemp)"
           trap 'rm -f "$validated"' EXIT
-          printf '%s' "$PAYLOAD" | go run ./cmd/release-dispatch-validate > "$validated"
+          printf '%s' "$PAYLOAD" | mise exec -- go run ./cmd/release-dispatch-validate > "$validated"
           cat "$validated" >> "$GITHUB_ENV"
           release_id="$(grep '^RELEASE_ID=' "$validated" | cut -d= -f2-)"
           printf 'release_id=%s\n' "$release_id" >> "$GITHUB_OUTPUT"
+      - name: Install and verify the complete release runtime
+        run: |
+          set -euo pipefail
+          command -v mise
+          mise --version
+          # Keep the release runtime explicit: `mise install` alone would
+          # install unrelated configuration, including OpenTofu.
+          mise install omnictl yq "kubectl@${RELEASE_KUBERNETES_VERSION}" "talosctl@${RELEASE_TALOS_VERSION}"
+          mise exec -- go version
+          mise exec -- omnictl --version
+          mise exec -- yq --version
+          mise exec -- kubectl version --client
+          mise exec -- talosctl version --client
+          test -x "$HOME/.local/bin/mise"
       - name: Check durable release claim
         id: release-claim
         uses: actions/cache/restore@v4
@@ -65,11 +77,20 @@ jobs:
           exit 1
       - name: Run non-mutating release preflight
         if: steps.release-claim.outputs.cache-hit != 'true'
+        env:
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
+          OMNI_SERVICE_ACCOUNT_KEY: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
+          OMNI_PROVIDER_COMPOSE_FILE: /opt/omni/omni/provider/docker-compose.yml
+          OMNI_PROVIDER_PROJECT_NAME: omni-libvirt-provider
+          OMNI_PROVIDER_CONTAINER: omni-infra-provider-libvirt
         run: |
+          set -euo pipefail
+          test -n "$OMNI_ENDPOINT"
+          test -n "$OMNI_SERVICE_ACCOUNT_KEY"
           CLUSTER_NAME=unraid-lab \
           VERSIONS_YAML_URL="https://raw.githubusercontent.com/${RELEASE_SOURCE_REPO}/${RELEASE_SOURCE_SHA}/omni/versions.yaml" \
           OMNI_INSTALL_IMAGE="$RELEASE_INSTALL_IMAGE" \
-          mise run omni:release:preflight
+          mise exec -- mise run omni:release:preflight
       - name: Persist release claim before mutation
         if: steps.release-claim.outputs.cache-hit != 'true'
         run: |
@@ -84,18 +105,33 @@ jobs:
           key: unraid-release-${{ steps.validate.outputs.release_id }}
       - name: Run guarded rollout
         if: steps.release-claim.outputs.cache-hit != 'true'
+        env:
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
+          OMNI_SERVICE_ACCOUNT_KEY: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
+          OMNI_PROVIDER_COMPOSE_FILE: /opt/omni/omni/provider/docker-compose.yml
+          OMNI_PROVIDER_PROJECT_NAME: omni-libvirt-provider
+          OMNI_PROVIDER_CONTAINER: omni-infra-provider-libvirt
         run: |
+          set -euo pipefail
+          test -n "$OMNI_ENDPOINT"
+          test -n "$OMNI_SERVICE_ACCOUNT_KEY"
           CLUSTER_NAME=unraid-lab \
           VERSIONS_YAML_URL="https://raw.githubusercontent.com/${RELEASE_SOURCE_REPO}/${RELEASE_SOURCE_SHA}/omni/versions.yaml" \
           OMNI_INSTALL_IMAGE="$RELEASE_INSTALL_IMAGE" \
-          mise run omni:release:apply
+          mise exec -- mise run omni:release:apply
       - name: Verify Talos, Omni, and Kubernetes convergence
         if: steps.release-claim.outputs.cache-hit != 'true'
+        env:
+          OMNI_ENDPOINT: ${{ secrets.OMNI_ENDPOINT }}
+          OMNI_SERVICE_ACCOUNT_KEY: ${{ secrets.OMNI_SERVICE_ACCOUNT_KEY }}
         run: |
+          set -euo pipefail
+          test -n "$OMNI_ENDPOINT"
+          test -n "$OMNI_SERVICE_ACCOUNT_KEY"
           CLUSTER_NAME=unraid-lab \
           TALOS_VERSION="$RELEASE_TALOS_VERSION" \
           KUBERNETES_VERSION="$RELEASE_KUBERNETES_VERSION" \
-          mise run omni:release:health
+          mise exec -- mise run omni:release:health
 
   report:
     if: always() && github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller' && needs.rollout.outputs.duplicate_delivery != 'true'
