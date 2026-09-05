@@ -24,6 +24,10 @@ jobs:
       labels: self-hosted
     steps:
       - uses: actions/checkout@v4
+      # Install only mise itself; the receipt below installs Go alone, not all tools.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
