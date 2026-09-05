@@ -152,8 +152,9 @@ set -euo pipefail
 container="${OMNI_PROVIDER_CONTAINER:-omni-infra-provider-libvirt}"
 expected_project="${OMNI_PROVIDER_PROJECT_NAME:-omni-libvirt-provider}"
 expected_compose_file="${OMNI_PROVIDER_COMPOSE_FILE:-/opt/omni/omni/provider/docker-compose.yml}"
-docker inspect --format '{{.State.Running}} {{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "com.docker.compose.project.config_files"}}' "$container" \
-  | grep -Fqx "true $expected_project $expected_compose_file"
+docker inspect "$container" \
+  | jq -r '.[0] | [.State.Running, .Config.Labels["com.docker.compose.project"], .Config.Labels["com.docker.compose.project.config_files"]] | @tsv' \
+  | grep -Fqx "true${IFS}$expected_project${IFS}$expected_compose_file"
 '''
 
 [tasks."omni:provider:artifact-check"]
