@@ -68,7 +68,6 @@ jobs:
           mise exec -- yq --version
           mise exec "kubectl@${RELEASE_KUBERNETES_VERSION}" -- kubectl version --client
           mise exec "talosctl@${RELEASE_TALOS_VERSION}" -- talosctl version --client
-          test -x "$HOME/.local/bin/mise"
       - name: Check durable release claim
         id: release-claim
         uses: actions/cache/restore@v4

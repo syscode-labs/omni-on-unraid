@@ -26,6 +26,9 @@ func TestReleaseDispatchKeepsDedicatedRunnerAndHostedCallback(t *testing.T) {
 	if !strings.Contains(text, miseSetup) {
 		t.Fatal("private rollout runner must explicitly install mise without installing every mise.toml tool")
 	}
+	if strings.Contains(text, "test -x \"$HOME/.local/bin/mise\"") {
+		t.Fatal("release runtime receipt must not assert an obsolete mise shim path")
+	}
 	const runtimeInstall = "mise install omnictl yq \"kubectl@${RELEASE_KUBERNETES_VERSION}\" \"talosctl@${RELEASE_TALOS_VERSION}\""
 	if strings.Index(text, miseSetup) > strings.Index(text, runtimeInstall) {
 		t.Fatal("mise must be installed before the rollout runtime receipt uses it")
