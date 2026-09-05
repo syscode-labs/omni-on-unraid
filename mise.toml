@@ -47,6 +47,7 @@ run = "./scripts/check-omni-version.sh"
 
 [tasks."omni:doctor"]
 description = "Validate local prerequisites for Omni operations"
+shell = "bash"
 run = '''
 set -euo pipefail
 command -v docker >/dev/null
@@ -67,6 +68,7 @@ run = "go run ./cmd/omni-health compose-env --path generated/compose.env"
 
 [tasks."omni:health:tls"]
 description = "Verify Omni web TLS and no-SNI machine API TLS"
+shell = "bash"
 run = '''
 set -euo pipefail
 if [ -f .env ]; then
@@ -110,6 +112,7 @@ run = "./scripts/backup.sh"
 
 [tasks."omni:restore"]
 description = "Restore Omni data from BACKUP"
+shell = "bash"
 run = '''
 set -euo pipefail
 if [ -z "${BACKUP:-}" ]; then
@@ -147,6 +150,7 @@ mise run omni:provider:status
 
 [tasks."omni:provider:status"]
 description = "Verify the Omni libvirt infrastructure provider is running"
+shell = "bash"
 run = '''
 set -euo pipefail
 container="${OMNI_PROVIDER_CONTAINER:-omni-infra-provider-libvirt}"
@@ -164,6 +168,7 @@ run = "./scripts/check-provider-artifact.sh"
 [tasks."omni:release:preflight"]
 description = "Run read-only provider, render, validate, and template dry-run gates"
 depends = ["omni:version-check", "omni:provider:status", "omni:provider:artifact-check", "omni:machineclass:render", "omni:cluster:render"]
+shell = "bash"
 run = '''
 set -euo pipefail
 omnictl cluster template validate --allowed-dir "$PWD/omni" --allowed-dir "$PWD/generated" -f generated/cluster.yaml
@@ -201,6 +206,7 @@ run = "docker compose -f omni/image-factory/docker-compose.yml --env-file .env d
 
 [tasks."omni:machineclass:render"]
 description = "Render Omni dynamic libvirt MachineClasses"
+shell = "bash"
 run = '''
 set -euo pipefail
 cluster_name="${CLUSTER_NAME:-unraid-lab}"
@@ -219,6 +225,7 @@ omnictl apply -f generated/machineclass-worker.yaml
 
 [tasks."omni:cluster:render"]
 description = "Render Omni cluster template using dynamic machine allocation"
+shell = "bash"
 run = '''
 set -euo pipefail
 cluster_name="${CLUSTER_NAME:-unraid-lab}"
@@ -238,6 +245,7 @@ run = "./omni/scripts/inject-tailscale-oauth.sh"
 # validated the rendered template and ran sync --dry-run.
 [tasks."omni:cluster:reconcile"]
 description = "Reconcile explicitly scoped stale cluster-machine links"
+shell = "bash"
 run = '''
 set -euo pipefail
 ./scripts/reconcile-cluster-machines.sh "${CLUSTER_NAME:-unraid-lab}"
@@ -256,6 +264,7 @@ omnictl cluster template status -f generated/cluster.yaml
 
 [tasks."omni:release:apply"]
 description = "Apply the validated Unraid release in provider, machineclass, cluster order"
+shell = "bash"
 run = '''
 set -euo pipefail
 mise run omni:release:preflight
