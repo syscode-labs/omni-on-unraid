@@ -16,6 +16,7 @@ jobs:
   rollout:
     outputs:
       duplicate_delivery: ${{ steps.release-claim.outputs.cache-hit }}
+      claim_saved: ${{ steps.claim-saved.outputs.claim_saved }}
     # sender_repo is a controller contract field, not sender authentication.
     # Validate the complete immutable request before any side effect.
     if: github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller'
@@ -98,11 +99,16 @@ jobs:
           mkdir -p .release-dispatch
           printf '{"release_id":"%s","build_run_id":%s}\n' "$RELEASE_ID" "$RELEASE_BUILD_RUN_ID" > ".release-dispatch/${RELEASE_ID}.json"
       - name: Save durable release claim
+        id: save-release-claim
         if: steps.release-claim.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: .release-dispatch/${{ steps.validate.outputs.release_id }}.json
           key: unraid-release-${{ steps.validate.outputs.release_id }}
+      - name: Mark durable release claim saved
+        id: claim-saved
+        if: steps.release-claim.outputs.cache-hit != 'true' && steps.save-release-claim.outcome == 'success'
+        run: echo 'claim_saved=true' >> "$GITHUB_OUTPUT"
       - name: Run guarded rollout
         if: steps.release-claim.outputs.cache-hit != 'true'
         env:
@@ -134,7 +140,10 @@ jobs:
           mise exec -- mise run omni:release:health
 
   report:
-    if: always() && github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller' && needs.rollout.outputs.duplicate_delivery != 'true'
+    # A duplicate is a reconciliation result, not permission to silently leave
+    # the controller pending. The controller blocks it unless original-attempt
+    # evidence can prove a terminal outcome.
+    if: always() && github.event.client_payload.sender_repo == 'syscode-labs/talos-release-controller'
     needs: rollout
     runs-on: ubuntu-latest
     steps:
@@ -155,6 +164,7 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PAYLOAD: ${{ toJson(github.event.client_payload) }}
           OUTCOME: ${{ needs.rollout.result == 'success' && 'success' || 'failure' }}
+          ATTEMPT_STATE: ${{ needs.rollout.outputs.duplicate_delivery == 'true' && 'existing_claim' || (needs.rollout.result == 'failure' && needs.rollout.outputs.claim_saved != 'true' && 'failed_pre_mutation' || '') }}
         run: |
           set -euo pipefail
           printf '%s' "$PAYLOAD" | go run ./cmd/release-dispatch-result > dispatch.json

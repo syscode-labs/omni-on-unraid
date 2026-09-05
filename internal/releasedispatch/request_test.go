@@ -70,11 +70,24 @@ func TestResultPropagatesFailureWithAcceptedBuildCorrelation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
-	result, err := Result(request, "failure", 456, "https://github.com/syscode-labs/omni-on-unraid/actions/runs/456")
+	result, err := Result(request, "failure", 456, "https://github.com/syscode-labs/omni-on-unraid/actions/runs/456", "failed_pre_mutation")
 	if err != nil {
 		t.Fatalf("Result returned error: %v", err)
 	}
-	if result.Outcome != "failure" || result.BuildRunID != request.BuildRunID || result.Artifacts != request.Artifacts {
-		t.Fatalf("failure callback lost controller correlation: %#v", result)
+	if result.Outcome != "failure" || result.AttemptState != "failed_pre_mutation" || result.BuildRunID != request.BuildRunID || result.Artifacts != request.Artifacts {
+		t.Fatalf("failure callback lost controller correlation or recovery classification: %#v", result)
+	}
+}
+
+func TestResultRejectsRetryClassificationAfterClaimOrOnSuccess(t *testing.T) {
+	request, err := Parse([]byte(validPayload))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if _, err := Result(request, "success", 456, "https://example.test/run/456", "failed_pre_mutation"); err == nil {
+		t.Fatal("success callback accepted a retry classification")
+	}
+	if _, err := Result(request, "failure", 456, "https://example.test/run/456", "unknown"); err == nil {
+		t.Fatal("callback accepted an unknown recovery classification")
 	}
 }
