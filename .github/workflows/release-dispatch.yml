@@ -24,6 +24,17 @@ jobs:
       labels: self-hosted
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify mise-managed Go runtime
+        run: |
+          set -euo pipefail
+          command -v mise
+          mise --version
+          mise install go
+          mise exec -- go version
       - name: Validate controller request and immutable artifact
         id: validate
         env:
@@ -88,6 +99,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:

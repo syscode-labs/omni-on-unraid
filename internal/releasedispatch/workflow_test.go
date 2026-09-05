@@ -18,4 +18,11 @@ func TestReleaseDispatchKeepsDedicatedRunnerAndHostedCallback(t *testing.T) {
 	if !strings.Contains(text, "runs-on: ubuntu-latest") {
 		t.Fatal("release callback must remain on a GitHub-hosted runner")
 	}
+	if strings.Count(text, "uses: actions/setup-go@v5") != 2 ||
+		strings.Count(text, "go-version-file: go.mod") != 2 {
+		t.Fatal("both release jobs that execute Go must install the go.mod toolchain")
+	}
+	if !strings.Contains(text, "mise install go") || !strings.Contains(text, "mise exec -- go version") {
+		t.Fatal("private rollout runner must verify its mise-managed Go runtime before mutation")
+	}
 }
