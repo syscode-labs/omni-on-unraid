@@ -94,8 +94,16 @@ printf 'kubectl:%s\n' "$*" >>"$CALL_LOG"
 if [ "$1 $2" = 'get nodes' ]; then
   target='ee285972-e7d5-433e-a67c-efb924707a8c'; [ "${SCENARIO:-healthy}" = identity-mismatch ] && target='00000000-0000-0000-0000-000000000000'
   unschedulable=false; [ "${SCENARIO:-healthy}" = initially-cordoned ] && unschedulable=true
+  peer_a_labels='{}'; peer_a_taints='[]'; peer_b_labels='{}'; peer_b_taints='[]'
+  if [ "${SCENARIO:-healthy}" = peer-placement-present ]; then
+    peer_a_labels='{"imp/enabled":"true"}'; peer_b_labels="$peer_a_labels"
+    peer_a_taints='[{"key":"imp.dev/runner","value":"true","effect":"NoSchedule"}]'; peer_b_taints="$peer_a_taints"
+  elif [ "${SCENARIO:-healthy}" = peer-placement-mixed ]; then
+    peer_a_labels='{"imp/enabled":"true"}'
+    peer_b_taints='[{"key":"imp.dev/runner","value":"true","effect":"NoSchedule"}]'
+  fi
   cat <<JSON
-{"items":[{"metadata":{"name":"unraid-lab-control-planes-6rrw7n"},"spec":{"unschedulable":$unschedulable},"status":{"nodeInfo":{"systemUUID":"$target"}}},{"metadata":{"name":"unraid-lab-control-planes-ng8qnl"},"status":{"nodeInfo":{"systemUUID":"1ebbe497-22fc-42a9-8ca9-eaa1f339ea83"}}},{"metadata":{"name":"unraid-lab-control-planes-slhjx6"},"status":{"nodeInfo":{"systemUUID":"5db9ed95-99dd-4d05-ab36-57707f4ec92b"}}}]}
+{"items":[{"metadata":{"name":"unraid-lab-control-planes-6rrw7n"},"spec":{"unschedulable":$unschedulable},"status":{"nodeInfo":{"systemUUID":"$target"}}},{"metadata":{"name":"unraid-lab-control-planes-ng8qnl","labels":$peer_a_labels},"spec":{"taints":$peer_a_taints},"status":{"nodeInfo":{"systemUUID":"1ebbe497-22fc-42a9-8ca9-eaa1f339ea83"}}},{"metadata":{"name":"unraid-lab-control-planes-slhjx6","labels":$peer_b_labels},"spec":{"taints":$peer_b_taints},"status":{"nodeInfo":{"systemUUID":"5db9ed95-99dd-4d05-ab36-57707f4ec92b"}}}]}
 JSON
 elif [ "$1" = get ] && [ "${2:-}" = --raw=/readyz ]; then
   [ "${SCENARIO:-healthy}" = api-failed ] && exit 1; echo ok
@@ -228,6 +236,19 @@ assert_in_order() {
 
 # Both accepted paths.
 run_case healthy '' pass
+assert_no_log "$CALL_LOG" 'kubectl:(label|taint) node unraid-lab-control-planes-(ng8qnl|slhjx6) imp\.(enabled-|dev/runner-)'
+run_case peer-placement-present '' pass
+assert_in_order "$CALL_LOG" \
+  'kubectl:label node unraid-lab-control-planes-ng8qnl imp/enabled-' \
+  'kubectl:taint node unraid-lab-control-planes-ng8qnl imp.dev/runner-' \
+  'kubectl:label node unraid-lab-control-planes-slhjx6 imp/enabled-' \
+  'kubectl:taint node unraid-lab-control-planes-slhjx6 imp.dev/runner-'
+assert_no_log "$CALL_LOG" 'ignore-not-found'
+run_case peer-placement-mixed '' pass
+assert_log "$CALL_LOG" 'kubectl:label node unraid-lab-control-planes-ng8qnl imp/enabled-'
+assert_log "$CALL_LOG" 'kubectl:taint node unraid-lab-control-planes-slhjx6 imp.dev/runner-'
+assert_no_log "$CALL_LOG" 'kubectl:taint node unraid-lab-control-planes-ng8qnl imp.dev/runner-'
+assert_no_log "$CALL_LOG" 'kubectl:label node unraid-lab-control-planes-slhjx6 imp/enabled-'
 assert_in_order "$CALL_LOG" \
   'rtk:ssh frigate-unraid:mutate' \
   'virsh:shutdown unraid-lab-control-planes-6rrw7n' \
