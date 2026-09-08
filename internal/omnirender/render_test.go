@@ -152,7 +152,6 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
 		"omni/patches/harbor-registry-mirror.yaml",
-		"omni/patches/imp-node-labels.yaml",
 	} {
 		found := false
 		for _, patch := range clusterPatches {
@@ -259,7 +258,6 @@ func TestClusterV13PatchSetIsExactlyTheBaseFour(t *testing.T) {
 		"omni/patches/disable-kube-proxy.yaml",
 		"omni/patches/inline-manifests.yaml",
 		"omni/patches/harbor-registry-mirror.yaml",
-		"omni/patches/imp-node-labels.yaml",
 	}
 	if len(clusterPatches) != len(filePatches)+1 {
 		t.Fatalf("v1.13 cluster patches = %v, want base files plus custom-install-image", clusterPatches)

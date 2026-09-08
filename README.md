@@ -66,9 +66,21 @@ Use `make help` for the short operator targets. `make lab` runs the whole
 Omni-only cluster path: provider, MachineClasses, and cluster template sync.
 
 Important boundary: cluster provisioning tasks use Omni (`omnictl`, machine
-classes, cluster templates, and the Omni infrastructure provider). They must not
+classes, cluster templates, and Omni infrastructure providers). They must not
 SSH to Unraid, call `virsh`, run Terraform, or create VMs directly. The provider
 may connect to libvirt because that is Omni's infrastructure-provider mechanism.
+
+### Asymmetric Imp control-plane placement
+
+Fresh ordinary control planes remain on the `unraid-cp` MachineClass default of
+4 GiB. The opt-in `mise run omni:imp-control-plane:resize` operation reserves
+7 GiB only for `unraid-lab-control-planes-6rrw7n`: it requires `APPLY=1`, a
+healthy 3/3 control plane, service-account Omni access, and the remote-operations
+supervisor. It creates the machine-scoped Omni ConfigPatch and Kubernetes
+`imp/enabled=true` / `imp.dev/runner=true:NoSchedule` placement, removes that
+placement from the other control planes, then cordons, drains, shuts down,
+resizes, restarts, and health-checks the exact domain. It fails closed on any
+identity/state mismatch; it never falls back to direct SSH or `virsh`.
 
 ## Tailscale Operator OAuth
 

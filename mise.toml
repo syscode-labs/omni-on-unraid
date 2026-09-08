@@ -296,6 +296,16 @@ run = "omnictl get machines -w"
 description = "Generate Cilium and Argo CD inline manifests for the Talos cluster template"
 run = "./omni/scripts/generate-manifests.sh"
 
+[tasks."omni:imp-control-plane:resize"]
+description = "Opt-in guarded 7 GiB resize and Imp placement for unraid-lab-control-planes-6rrw7n"
+shell = "bash -c"
+run = '''
+set -euo pipefail
+: "${APPLY:?Set APPLY=1 only after the cluster is RUNNING Ready (3/3)}"
+[ "$APPLY" = 1 ] || { echo "APPLY must equal 1" >&2; exit 1; }
+./scripts/resize-unraid-imp-control-plane.sh
+'''
+
 [tasks."auth:pocketid:render-oidc-sql"]
 description = "Render Pocket-ID OIDC client SQL required by Omni"
 run = "go run ./cmd/omni-render pocketid-oidc-sql --output generated/pocket-id-omni-oidc-client.sql"
