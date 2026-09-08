@@ -191,9 +191,7 @@ spec:
     labels:
       imp/enabled: "true"
     taints:
-      imp.dev/runner:
-        value: "true"
-        effect: NoSchedule
+      imp.dev/runner: "true:NoSchedule"
 EOF
 omni apply -f "$workdir/target-config-patch.yaml"
 
