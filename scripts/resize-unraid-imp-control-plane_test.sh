@@ -51,7 +51,10 @@ JSON
     ;;
   kubeconfig\ *|talosconfig\ *) : >"${@: -1}" ;;
   apply\ *) printf 'omni:%s\n' "$*" >>"$CALL_LOG"; [ "${SCENARIO:-healthy}" != config-apply-failed ] ;;
-  'cluster status') [ "${SCENARIO:-healthy}" = final-status-failed ] && echo 'RUNNING Not Ready (2/3)' || echo 'RUNNING Ready (3/3)' ;;
+  'cluster status')
+    [ "$*" = 'cluster status unraid-lab --wait=15m' ] || { echo "unexpected cluster status invocation: $*" >&2; exit 2; }
+    [ "${SCENARIO:-healthy}" = final-status-failed ] && echo 'RUNNING Not Ready (2/3)' || echo 'RUNNING Ready (3/3)'
+    ;;
   *) echo "unexpected omnictl invocation: $*" >&2; exit 2 ;;
 esac
 MOCK

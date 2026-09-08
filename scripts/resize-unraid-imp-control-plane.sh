@@ -246,7 +246,7 @@ REMOTE
 
 kubectl wait --for=condition=Ready "node/$target_node" --timeout=15m
 kubectl get node "$target_node" -o json | jq -e '.metadata.labels["imp/enabled"] == "true" and any(.spec.taints[]?; .key == "imp.dev/runner" and .value == "true" and .effect == "NoSchedule")' >/dev/null || fail 'target Imp placement did not converge'
-omni cluster status "$cluster_name" --wait=0 | tee /dev/stderr | grep -Fq 'RUNNING Ready (3/3)' || fail 'cluster did not return to Ready (3/3)'
+omni cluster status "$cluster_name" --wait=15m | tee /dev/stderr | grep -Fq 'RUNNING Ready (3/3)' || fail 'cluster did not return to Ready (3/3)'
 kubectl uncordon "$target_node"
 cordoned_by_script=false
 [ "$recovery_2of3" = true ] && printf 'guarded target-only 2/3 recovery preflight accepted\n'
