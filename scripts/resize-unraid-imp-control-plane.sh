@@ -10,9 +10,9 @@ target_domain="unraid-lab-control-planes-6rrw7n"
 target_memory_mib=7168
 apply="${APPLY:-0}"
 preflight_only="${PREFLIGHT_ONLY:-0}"
-remote_ops="${REMOTE_OPS:-/usr/local/bin/coding-agent-remote-operations-supervisor}"
-remote_target="${REMOTE_TARGET:-bookofshadows}"
-remote_session="${REMOTE_SESSION:-unraid-imp-control-plane-resize}"
+remote_ops="/usr/local/bin/coding-agent-remote-operations-supervisor"
+remote_target="bookofshadows"
+remote_session="unraid-imp-control-plane-resize"
 peer_domains=(unraid-lab-control-planes-ng8qnl unraid-lab-control-planes-slhjx6)
 all_domains=("$target_domain" "${peer_domains[@]}")
 
@@ -41,14 +41,19 @@ command -v jq >/dev/null || fail 'jq is required'
 # Use Omni resources rather than the decorative `omnictl cluster status` view.
 # The recovery exception is deliberately narrower than a generic 2/3 status.
 machines="$(omni get Machines.omni.sidero.dev -o json)"
-declare -A machine_ids=()
-for domain in "${all_domains[@]}"; do
+machine_ids=()
+for index in "${!all_domains[@]}"; do
+  domain="${all_domains[$index]}"
   id="$(jq -r --arg request "$domain" 'select(.metadata.labels["omni.sidero.dev/machine-request"] == $request) | .metadata.id' <<<"$machines")"
   [ "$(printf '%s\n' "$id" | count_lines)" = 1 ] || fail "expected exactly one Omni Machine for $domain"
-  machine_ids["$domain"]="$(printf '%s\n' "$id" | sed -n '1p')"
+  machine_ids[index]="$(printf '%s\n' "$id" | sed -n '1p')"
 done
-target_id="${machine_ids[$target_domain]}"
-jq -e --arg id "$target_id" 'select(.metadata.id == $id and .spec.connected == true)' <<<"$machines" >/dev/null || fail "target $target_domain is not connected in Omni"
+target_id="${machine_ids[0]}"
+peer_a_id="${machine_ids[1]}"
+peer_b_id="${machine_ids[2]}"
+for index in "${!all_domains[@]}"; do
+  jq -e --arg id "${machine_ids[$index]}" 'select(.metadata.id == $id and .spec.connected == true)' <<<"$machines" >/dev/null || fail "${all_domains[$index]} is not connected in Omni"
+done
 
 cluster_status="$(omni get ClusterStatuses.omni.sidero.dev "$cluster_name" -o json)"
 cluster_healthy=false
@@ -61,9 +66,6 @@ jq -s -e --arg id "$target_id" '
   [ .[] | select(.metadata.id == $id) ] | length == 1 and
   .[0].spec.configuptodate == true and (.[0].spec.managementaddress | type == "string" and length > 0)
 ' <<<"$machine_statuses" >/dev/null || fail "target $target_domain is not config-current in Omni"
-peer_a_id="${machine_ids[${peer_domains[0]}]}"
-peer_b_id="${machine_ids[${peer_domains[1]}]}"
-
 recovery_2of3=false
 if [ "$cluster_healthy" != true ]; then
   jq -e '.spec.ready == false and .spec.kubernetesapiready == true and .spec.machines.total == 3 and .spec.machines.healthy == 2 and .spec.machines.connected == 3' <<<"$cluster_status" >/dev/null || fail 'cluster is neither Ready (3/3) nor the guarded target-only 2/3 recovery state'
@@ -78,7 +80,29 @@ if [ "$cluster_healthy" != true ]; then
 fi
 
 workdir="$(mktemp -d)"
-trap 'rm -rf "$workdir"' EXIT
+target_node=''
+cordoned_by_script=false
+placement_is_ready() {
+  kubectl get node "$target_node" -o json 2>/dev/null | jq -e '.metadata.labels["imp/enabled"] == "true" and any(.spec.taints[]?; .key == "imp.dev/runner" and .value == "true" and .effect == "NoSchedule")' >/dev/null
+}
+on_exit() {
+  rc=$?
+  trap - EXIT
+  if [ "$rc" -ne 0 ] && [ "$cordoned_by_script" = true ]; then
+    if kubectl wait --for=condition=Ready "node/$target_node" --timeout=2m >/dev/null 2>&1 && placement_is_ready; then
+      if kubectl uncordon "$target_node" >/dev/null; then
+        printf 'RECOVERY: restored schedulability after failure because the exact target is Ready with intended placement\n' >&2
+      else
+        printf 'RECOVERY REQUIRED: exact target is Ready but uncordon failed; it remains fenced\n' >&2
+      fi
+    else
+      printf 'RECOVERY REQUIRED: exact target is not Ready with intended placement; it remains fenced\n' >&2
+    fi
+  fi
+  rm -rf "$workdir"
+  exit "$rc"
+}
+trap on_exit EXIT
 kubeconfig="$workdir/kubeconfig"
 talosconfig="$workdir/talosconfig"
 omni kubeconfig -c "$cluster_name" --service-account --user unraid-imp-placement --ttl 30m --force --merge=false "$kubeconfig" >/dev/null
@@ -88,16 +112,19 @@ export KUBECONFIG="$kubeconfig"
 # Require one-to-one Machine UUID -> Kubernetes node system UUID mapping for all
 # three named domains. This prevents a stale/replaced node from being drained.
 nodes_json="$(kubectl get nodes -o json)"
-declare -A node_names=()
-for domain in "${all_domains[@]}"; do
-  id="${machine_ids[$domain]}"
+node_names=()
+for index in "${!all_domains[@]}"; do
+  domain="${all_domains[$index]}"
+  id="${machine_ids[$index]}"
   node="$(jq -r --arg name "$domain" --arg id "$id" '
     .items[] | select(.metadata.name == $name and ((.status.nodeInfo.systemUUID | ascii_downcase) == ($id | ascii_downcase))) | .metadata.name
   ' <<<"$nodes_json")"
   [ "$(printf '%s\n' "$node" | count_lines)" = 1 ] || fail "expected one exact Machine UUID to Kubernetes node mapping for $domain"
-  node_names["$domain"]="$(printf '%s\n' "$node" | sed -n '1p')"
+  node_names[index]="$(printf '%s\n' "$node" | sed -n '1p')"
 done
-target_node="${node_names[$target_domain]}"
+target_node="${node_names[0]}"
+original_unschedulable="$(jq -r --arg name "$target_node" '.items[] | select(.metadata.name == $name) | (.spec.unschedulable // false)' <<<"$nodes_json")"
+[ "$original_unschedulable" = false ] || fail "target $target_node must be schedulable before this operation"
 
 # API readiness is a live Kubernetes check, not just Omni's cached status.
 kubectl get --raw=/readyz | grep -Fxq 'ok' || fail 'Kubernetes API /readyz did not succeed'
@@ -109,18 +136,22 @@ etcd_members="$(talosctl --talosconfig "$talosconfig" --nodes "$peer_a_id" etcd 
 printf '%s\n' "$etcd_members" | awk '
   NR == 1 { if (NF != 8 || $1 != "NODE" || $2 != "ID" || $3 != "HOSTNAME" || $8 != "LEARNER") exit 1; next }
   NF != 6 || $2 == "" || $4 == "" || $5 == "" || $6 != "false" { exit 1 }
-  seen_id[$2]++
-  seen_host[$3]++
+  {
+    seen_id[$2] += 1
+    seen_host[$3] += 1
+    if (seen_id[$2] != 1 || seen_host[$3] != 1) exit 1
+    rows += 1
+  }
   END {
-    if (NR != 4 || length(seen_id) != 3 || length(seen_host) != 3) exit 1
-    if (!seen_host["unraid-lab-control-planes-6rrw7n"] || !seen_host["unraid-lab-control-planes-ng8qnl"] || !seen_host["unraid-lab-control-planes-slhjx6"]) exit 1
+    if (NR != 4 || rows != 3) exit 1
+    if (seen_host["unraid-lab-control-planes-6rrw7n"] != 1 || seen_host["unraid-lab-control-planes-ng8qnl"] != 1 || seen_host["unraid-lab-control-planes-slhjx6"] != 1) exit 1
   }
 ' || fail 'etcd quorum evidence requires the three expected unique non-learner voting members'
 
 # Validate each named libvirt domain through the remote-operations supervisor.
 # dominfo supplies the exact UUID plus current and maximum assigned memory.
 "$remote_ops" run --target "$remote_target" --session "$remote_session" -- \
-  ssh "$remote_target" "bash -s -- '${all_domains[0]}' '${machine_ids[${all_domains[0]}]}' '${all_domains[1]}' '${machine_ids[${all_domains[1]}]}' '${all_domains[2]}' '${machine_ids[${all_domains[2]}]}'" <<'REMOTE'
+  ssh "$remote_target" "bash -s -- '${all_domains[0]}' '${machine_ids[0]}' '${all_domains[1]}' '${machine_ids[1]}' '${all_domains[2]}' '${machine_ids[2]}'" <<'REMOTE'
 set -euo pipefail
 while [ "$#" -gt 0 ]; do
   domain="$1"; expected_uuid="$2"; shift 2
@@ -129,9 +160,11 @@ while [ "$#" -gt 0 ]; do
   [ "$uuid" = "$(printf '%s' "$expected_uuid" | tr '[:upper:]' '[:lower:]')" ] || { echo 'domain UUID does not match Omni Machine UUID' >&2; exit 1; }
   maximum="$(printf '%s\n' "$info" | awk -F: '/^Max memory:/ {gsub(/[^0-9]/, "", $2); print $2}')"
   current="$(printf '%s\n' "$info" | awk -F: '/^Used memory:/ {gsub(/[^0-9]/, "", $2); print $2}')"
+  state="$(printf '%s\n' "$info" | awk -F: '/^State:/ {sub(/^[[:space:]]+/, "", $2); print $2}')"
+  [ "$state" = running ] || { echo 'control-plane domain is not running' >&2; exit 1; }
   case "$domain" in
     unraid-lab-control-planes-6rrw7n)
-      { [ "$maximum" = 4194304 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 7340032 ]; } || { echo 'unexpected target current/max memory' >&2; exit 1; }
+      { [ "$maximum" = 4194304 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 7340032 ]; } || { echo 'unexpected target current/max memory' >&2; exit 1; }
       ;;
     *)
       [ "$maximum" = 4194304 ] && [ "$current" = 4194304 ] || { echo 'ordinary control-plane memory is not 4096 MiB' >&2; exit 1; }
@@ -167,14 +200,15 @@ spec:
 EOF
 omni apply -f "$workdir/target-config-patch.yaml"
 
-for domain in "${peer_domains[@]}"; do
-  node="${node_names[$domain]}"
+for index in 1 2; do
+  node="${node_names[$index]}"
   kubectl label node "$node" imp/enabled- --ignore-not-found
   kubectl taint node "$node" imp.dev/runner- --ignore-not-found
 done
 kubectl label node "$target_node" imp/enabled=true --overwrite
 kubectl taint node "$target_node" imp.dev/runner=true:NoSchedule --overwrite
 kubectl cordon "$target_node"
+cordoned_by_script=true
 kubectl drain "$target_node" --ignore-daemonsets --delete-emptydir-data --timeout=10m
 
 # Re-check structured XML immediately before mutating through the supervisor;
@@ -188,9 +222,22 @@ domain="$1"; target="$2"
 info="$(virsh dominfo "$domain")"
 maximum="$(printf '%s\n' "$info" | awk -F: '/^Max memory:/ {gsub(/[^0-9]/, "", $2); print $2}')"
 current="$(printf '%s\n' "$info" | awk -F: '/^Used memory:/ {gsub(/[^0-9]/, "", $2); print $2}')"
-{ [ "$maximum" = 4194304 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 7340032 ]; } || { echo 'unexpected target current/max memory' >&2; exit 1; }
+{ [ "$maximum" = 4194304 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 7340032 ]; } || { echo 'unexpected target current/max memory' >&2; exit 1; }
 state="$(virsh domstate "$domain" | tr -d '\r' | xargs)"
-case "$state" in running) virsh shutdown "$domain" ;; 'shut off') : ;; *) echo "unexpected domain state: $state" >&2; exit 1 ;; esac
+[ "$state" = running ] || { echo "unexpected domain state: $state" >&2; exit 1; }
+if [ "$maximum" = 7340032 ] && [ "$current" = 7340032 ]; then exit 0; fi
+shutdown_started=false
+recover_vm() {
+  rc=$?
+  trap - EXIT
+  if [ "$rc" -ne 0 ] && [ "$shutdown_started" = true ] && [ "$(virsh domstate "$domain" | tr -d '\r' | xargs)" = 'shut off' ]; then
+    virsh start "$domain" >/dev/null 2>&1 || true
+  fi
+  exit "$rc"
+}
+trap recover_vm EXIT
+shutdown_started=true
+virsh shutdown "$domain"
 for _ in $(seq 1 60); do [ "$(virsh domstate "$domain" | tr -d '\r' | xargs)" = 'shut off' ] && break; sleep 5; done
 [ "$(virsh domstate "$domain" | tr -d '\r' | xargs)" = 'shut off' ] || { echo 'domain did not shut down' >&2; exit 1; }
 virsh setmaxmem "$domain" "$target" --config --size MiB
@@ -203,5 +250,6 @@ kubectl wait --for=condition=Ready "node/$target_node" --timeout=15m
 kubectl get node "$target_node" -o json | jq -e '.metadata.labels["imp/enabled"] == "true" and any(.spec.taints[]?; .key == "imp.dev/runner" and .value == "true" and .effect == "NoSchedule")' >/dev/null || fail 'target Imp placement did not converge'
 omni cluster status "$cluster_name" --wait=0 | tee /dev/stderr | grep -Fq 'RUNNING Ready (3/3)' || fail 'cluster did not return to Ready (3/3)'
 kubectl uncordon "$target_node"
+cordoned_by_script=false
 [ "$recovery_2of3" = true ] && printf 'guarded target-only 2/3 recovery preflight accepted\n'
 printf 'completed %s: target %s (%s) is 7168 MiB; ordinary nodes remain at the 4096 MiB MachineClass default\n' "$cluster_name" "$target_node" "$target_domain"
