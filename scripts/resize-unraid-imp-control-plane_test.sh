@@ -111,8 +111,10 @@ case "$3" in 'bash -s -- '*) ;; *) exit 2 ;; esac
 body="$(cat)"
 if printf '%s' "$body" | grep -Fq 'virsh setmaxmem'; then
   printf 'rtk:ssh frigate-unraid:mutate\n' >>"$CALL_LOG"
+  export VIRSH_MUTATION=1
 else
   printf 'rtk:ssh frigate-unraid:preflight\n' >>"$CALL_LOG"
+  unset VIRSH_MUTATION
   [ "${SCENARIO:-healthy}" = unexpected-memory ] && exit 1
 fi
 eval "set -- ${3#bash -s -- }"
@@ -127,7 +129,10 @@ state=running; [ -f "$state_file" ] && state="$(cat "$state_file")"
 case "$1" in
   dominfo)
     case "$2" in
-      unraid-lab-control-planes-6rrw7n) uuid=ee285972-e7d5-433e-a67c-efb924707a8c ;;
+      unraid-lab-control-planes-6rrw7n)
+        uuid=ee285972-e7d5-433e-a67c-efb924707a8c
+        [ "${SCENARIO:-healthy}" = mutation-uuid-mismatch ] && [ "${VIRSH_MUTATION:-0}" = 1 ] && uuid=00000000-0000-0000-0000-000000000000
+        ;;
       unraid-lab-control-planes-ng8qnl) uuid=1ebbe497-22fc-42a9-8ca9-eaa1f339ea83 ;;
       unraid-lab-control-planes-slhjx6) uuid=5db9ed95-99dd-4d05-ab36-57707f4ec92b ;;
       *) exit 2 ;;
@@ -221,6 +226,9 @@ assert_in_order "$CALL_LOG" 'kubectl:cordon unraid-lab-control-planes-6rrw7n' 'k
 run_case remote-shutdown-failed 'RECOVERY: restored schedulability' fail
 assert_no_log "$CALL_LOG" 'virsh:(setmaxmem|setmem|start)'
 assert_log "$CALL_LOG" 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
+run_case mutation-uuid-mismatch 'domain UUID does not match Omni Machine UUID' fail
+assert_in_order "$CALL_LOG" 'rtk:ssh frigate-unraid:preflight' 'rtk:ssh frigate-unraid:mutate' 'virsh:dominfo unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
+assert_no_log "$CALL_LOG" 'virsh:(shutdown|setmaxmem|setmem|start)'
 run_case remote-setmaxmem-failed 'RECOVERY: restored schedulability' fail
 assert_in_order "$CALL_LOG" 'virsh:shutdown unraid-lab-control-planes-6rrw7n' 'virsh:setmaxmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' 'virsh:start unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
 assert_no_log "$CALL_LOG" 'virsh:setmem'

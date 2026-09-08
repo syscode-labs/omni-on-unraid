@@ -210,12 +210,14 @@ kubectl drain "$target_node" --ignore-daemonsets --delete-emptydir-data --timeou
 
 # Re-check structured XML immediately before mutating through the approved path;
 # this closes the gap between read-only preflight and shutdown.
-"$remote_ops" ssh frigate-unraid "bash -s -- '$target_domain' '$target_memory_mib'" <<'REMOTE'
+"$remote_ops" ssh frigate-unraid "bash -s -- '$target_domain' '$target_memory_mib' '$target_id'" <<'REMOTE'
 set -euo pipefail
-domain="$1"; target="$2"
+domain="$1"; target="$2"; expected_uuid="$3"
 [ "$domain" = unraid-lab-control-planes-6rrw7n ] || { echo 'unexpected domain' >&2; exit 1; }
 [ "$target" = 7168 ] || { echo 'unexpected target memory' >&2; exit 1; }
 info="$(virsh dominfo "$domain")"
+uuid="$(printf '%s\n' "$info" | awk -F: '/^UUID:/ {gsub(/[[:space:]]/, "", $2); print tolower($2)}')"
+[ "$uuid" = "$(printf '%s' "$expected_uuid" | tr '[:upper:]' '[:lower:]')" ] || { echo 'domain UUID does not match Omni Machine UUID' >&2; exit 1; }
 maximum="$(printf '%s\n' "$info" | awk -F: '/^Max memory:/ {gsub(/[^0-9]/, "", $2); print $2}')"
 current="$(printf '%s\n' "$info" | awk -F: '/^Used memory:/ {gsub(/[^0-9]/, "", $2); print $2}')"
 { [ "$maximum" = 4194304 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 4194304 ]; } || { [ "$maximum" = 7340032 ] && [ "$current" = 7340032 ]; } || { echo 'unexpected target current/max memory' >&2; exit 1; }
