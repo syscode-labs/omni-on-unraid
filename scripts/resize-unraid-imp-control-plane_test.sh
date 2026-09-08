@@ -50,7 +50,36 @@ JSON
 JSON
     ;;
   kubeconfig\ *|talosconfig\ *) : >"${@: -1}" ;;
-  apply\ *) printf 'omni:%s\n' "$*" >>"$CALL_LOG"; [ "${SCENARIO:-healthy}" != config-apply-failed ] ;;
+  apply\ *)
+    [ "$#" = 3 ] && [ "$2" = -f ] || { echo "unexpected config apply invocation: $*" >&2; exit 2; }
+    python3 - "$3" <<'PY'
+from pathlib import Path
+import sys
+
+patch = Path(sys.argv[1]).read_text()
+expected = '''metadata:
+  namespace: default
+  type: ConfigPatches.omni.sidero.dev
+  id: imp-placement-ee285972-e7d5-433e-a67c-efb924707a8c
+  labels:
+    omni.sidero.dev/machine: ee285972-e7d5-433e-a67c-efb924707a8c
+spec:
+  data: |
+    apiVersion: v1alpha1
+    kind: KubeNodeConfig
+    labels:
+      imp/enabled: "true"
+    taints:
+      imp.dev/runner: "true:NoSchedule"
+'''
+if patch != expected:
+    raise SystemExit("generated ConfigPatch must be machine-scoped and render imp.dev/runner as the exact scalar true:NoSchedule")
+if 'value:' in patch or 'effect:' in patch:
+    raise SystemExit("generated ConfigPatch must not use nested taint value/effect fields")
+PY
+    printf 'omni:%s\n' "$*" >>"$CALL_LOG"
+    [ "${SCENARIO:-healthy}" != config-apply-failed ]
+    ;;
   'cluster status')
     [ "$*" = 'cluster status unraid-lab --wait=15m' ] || { echo "unexpected cluster status invocation: $*" >&2; exit 2; }
     [ "${SCENARIO:-healthy}" = final-status-failed ] && echo 'RUNNING Not Ready (2/3)' || echo 'RUNNING Ready (3/3)'
