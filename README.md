@@ -73,10 +73,14 @@ may connect to libvirt because that is Omni's infrastructure-provider mechanism.
 ### Asymmetric Imp control-plane placement
 
 Fresh ordinary control planes remain on the `unraid-cp` MachineClass default of
-4 GiB. The opt-in `mise run omni:imp-control-plane:resize` operation reserves
-7 GiB only for `unraid-lab-control-planes-6rrw7n`: it requires `APPLY=1`, a
-healthy 3/3 control plane, service-account Omni access, and the remote-operations
-supervisor. It creates the machine-scoped Omni ConfigPatch and Kubernetes
+4 GiB. Run `mise run omni:imp-control-plane:resize:preflight` before the opt-in
+`APPLY=1 mise run omni:imp-control-plane:resize` operation. The preflight accepts
+either a healthy 3/3 control plane or the narrow recovery state where only
+`unraid-lab-control-planes-6rrw7n` is unhealthy, both peers are healthy, the API
+is ready, and all three expected etcd voters remain. It also requires exact
+Omni, Kubernetes, and libvirt identity and 4096-or-7168 MiB memory. The operation
+reserves 7 GiB only for `unraid-lab-control-planes-6rrw7n`. It creates the
+machine-scoped Omni ConfigPatch and Kubernetes
 `imp/enabled=true` / `imp.dev/runner=true:NoSchedule` placement, removes that
 placement from the other control planes, then cordons, drains, shuts down,
 resizes, restarts, and health-checks the exact domain. It fails closed on any
