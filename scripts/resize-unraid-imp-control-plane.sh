@@ -197,8 +197,12 @@ omni apply -f "$workdir/target-config-patch.yaml"
 
 for index in 1 2; do
   node="${node_names[$index]}"
-  kubectl label node "$node" imp/enabled- --ignore-not-found
-  kubectl taint node "$node" imp.dev/runner- --ignore-not-found
+  if jq -e --arg name "$node" '[.items[] | select(.metadata.name == $name and (.metadata.labels["imp/enabled"]? != null))] | length == 1' <<<"$nodes_json" >/dev/null; then
+    kubectl label node "$node" imp/enabled-
+  fi
+  if jq -e --arg name "$node" '[.items[] | select(.metadata.name == $name) | .spec.taints[]? | select(.key == "imp.dev/runner")] | length > 0' <<<"$nodes_json" >/dev/null; then
+    kubectl taint node "$node" imp.dev/runner-
+  fi
 done
 kubectl label node "$target_node" imp/enabled=true --overwrite
 kubectl taint node "$target_node" imp.dev/runner=true:NoSchedule --overwrite
