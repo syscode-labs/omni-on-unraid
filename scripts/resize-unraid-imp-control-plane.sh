@@ -37,6 +37,30 @@ command -v kubectl >/dev/null || fail 'kubectl is required'
 command -v talosctl >/dev/null || fail 'talosctl is required'
 command -v jq >/dev/null || fail 'jq is required'
 
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+# A prior cluster-wide patch continuously re-applied Imp placement to peers.
+# Delete only the known stale object, after proving it is exactly that object;
+# do this before issuing any Kubernetes or remote-operations command.
+if [ "$apply" = 1 ]; then
+  stale_patch_id='204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml'
+  stale_patch_data=$'apiVersion: v1alpha1\nkind: KubeNodeConfig\nlabels:\n  imp/enabled: "true"\n'
+  stale_patch_stderr="$workdir/stale-cluster-imp-config-patch.stderr"
+  if stale_patch="$(omni get ConfigPatches.omni.sidero.dev "$stale_patch_id" -o json 2>"$stale_patch_stderr")"; then
+    jq -e --arg id "$stale_patch_id" --arg cluster "$cluster_name" --arg data "$stale_patch_data" '
+      .metadata.id == $id and
+      (.metadata.labels | type == "object") and
+      .metadata.labels["omni.sidero.dev/cluster"] == $cluster and
+      (.metadata.labels | has("omni.sidero.dev/machine") | not) and
+      .spec.data == $data
+    ' <<<"$stale_patch" >/dev/null || fail 'stale cluster-wide Imp ConfigPatch does not match the expected safe content'
+    omni delete ConfigPatches.omni.sidero.dev "$stale_patch_id"
+  elif ! grep -Fq 'code = NotFound' "$stale_patch_stderr"; then
+    fail 'could not read stale cluster-wide Imp ConfigPatch; refusing to continue'
+  fi
+fi
+
 # Use Omni resources rather than the decorative `omnictl cluster status` view.
 # The recovery exception is deliberately narrower than a generic 2/3 status.
 machines="$(omni get Machines.omni.sidero.dev -o json)"
@@ -78,7 +102,6 @@ if [ "$cluster_healthy" != true ]; then
   recovery_2of3=true
 fi
 
-workdir="$(mktemp -d)"
 target_node=''
 cordoned_by_script=false
 placement_is_ready() {

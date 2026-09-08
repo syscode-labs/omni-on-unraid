@@ -49,6 +49,41 @@ JSON
 {"metadata":{"id":"5db9ed95-99dd-4d05-ab36-57707f4ec92b"},"spec":{"ready":$peer_b,"configuptodate":true,"managementaddress":"10.0.0.3"}}
 JSON
     ;;
+  'get ConfigPatches.omni.sidero.dev')
+    [ "$*" = 'get ConfigPatches.omni.sidero.dev 204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml -o json' ] || { echo "stale ConfigPatch lookup must use its exact ID: $*" >&2; exit 2; }
+    case "${SCENARIO:-healthy}" in
+      stale-patch-not-found)
+        echo 'rpc error: code = NotFound desc = resource was not found' >&2
+        exit 1
+        ;;
+      stale-patch-get-failed)
+        echo 'rpc error: code = Unavailable desc = temporary authentication failure' >&2
+        exit 1
+        ;;
+      stale-patch-unexpected)
+        python3 - <<'PY'
+import json
+print(json.dumps({"metadata": {"id": "204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml", "labels": {"omni.sidero.dev/cluster": "unraid-lab", "omni.sidero.dev/machine": "attacker-machine"}}, "spec": {"data": 'apiVersion: v1alpha1\nkind: KubeNodeConfig\nlabels:\n  imp/enabled: "true"\n'}}))
+PY
+        ;;
+      stale-patch-unexpected-data)
+        python3 - <<'PY'
+import json
+print(json.dumps({"metadata": {"id": "204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml", "labels": {"omni.sidero.dev/cluster": "unraid-lab"}}, "spec": {"data": 'apiVersion: v1alpha1\nkind: KubeNodeConfig\nlabels:\n  imp/enabled: "false"\n'}}))
+PY
+        ;;
+      *)
+        python3 - <<'PY'
+import json
+print(json.dumps({"metadata": {"id": "204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml", "labels": {"omni.sidero.dev/cluster": "unraid-lab"}}, "spec": {"data": 'apiVersion: v1alpha1\nkind: KubeNodeConfig\nlabels:\n  imp/enabled: "true"\n'}}))
+PY
+        ;;
+    esac
+    ;;
+  'delete ConfigPatches.omni.sidero.dev')
+    [ "$*" = 'delete ConfigPatches.omni.sidero.dev 204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml' ] || { echo "stale ConfigPatch deletion must use its exact ID: $*" >&2; exit 2; }
+    printf 'omni:%s\n' "$*" >>"$CALL_LOG"
+    ;;
   kubeconfig\ *|talosconfig\ *) : >"${@: -1}" ;;
   apply\ *)
     [ "$#" = 3 ] && [ "$2" = -f ] || { echo "unexpected config apply invocation: $*" >&2; exit 2; }
@@ -215,7 +250,8 @@ chmod +x "$tmp/bin"/*
 run_case() {
   local scenario="$1" want="$2" expected="$3" preflight="${4:-0}" output status
   export CALL_LOG="$tmp/calls-$scenario-$preflight"
-  rm -f "$CALL_LOG" "$CALL_LOG.wait-count"
+  rm -f "$CALL_LOG.wait-count"
+  : >"$CALL_LOG"
   set +e
   output="$(PATH="$tmp/bin:$PATH" HOME="$tmp/home" APPLY=$((1 - preflight)) PREFLIGHT_ONLY="$preflight" SCENARIO="$scenario" CALL_LOG="$CALL_LOG" "$script" 2>&1)"
   status=$?
@@ -242,6 +278,18 @@ assert_in_order() {
 
 # Both accepted paths.
 run_case healthy '' pass
+assert_in_order "$CALL_LOG" \
+  'omni:delete ConfigPatches.omni.sidero.dev 204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml' \
+  'omni:apply -f'
+run_case stale-patch-not-found '' pass
+assert_no_log "$CALL_LOG" '^omni:delete ConfigPatches\.omni\.sidero\.dev'
+assert_log "$CALL_LOG" 'omni:apply -f'
+run_case stale-patch-unexpected 'stale cluster-wide Imp ConfigPatch does not match the expected safe content' fail
+assert_no_log "$CALL_LOG" '^(omni:(apply|delete)|kubectl:|rtk:ssh frigate-unraid:)'
+run_case stale-patch-unexpected-data 'stale cluster-wide Imp ConfigPatch does not match the expected safe content' fail
+assert_no_log "$CALL_LOG" '^(omni:(apply|delete)|kubectl:|rtk:ssh frigate-unraid:)'
+run_case stale-patch-get-failed 'could not read stale cluster-wide Imp ConfigPatch' fail
+assert_no_log "$CALL_LOG" '^(omni:(apply|delete)|kubectl:|rtk:ssh frigate-unraid:)'
 assert_no_log "$CALL_LOG" 'kubectl:(label|taint) node unraid-lab-control-planes-(ng8qnl|slhjx6) imp\.(enabled-|dev/runner-)'
 run_case peer-placement-present '' pass
 assert_in_order "$CALL_LOG" \
