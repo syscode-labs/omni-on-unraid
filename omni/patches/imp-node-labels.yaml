@@ -1,4 +1,4 @@
-machine:
-  kubelet:
-    nodeLabels:
-      imp/enabled: "true"
+# Intentionally empty: Imp placement is machine-scoped by
+# scripts/resize-unraid-imp-control-plane.sh.  Keeping a global node label here
+# would make every control-plane node an Imp candidate after Talos reboots.
+{}
