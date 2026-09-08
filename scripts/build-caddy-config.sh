@@ -66,7 +66,7 @@ ${CADDY_TS_DOMAIN}:8090 {
   }
 }
 
-${CADDY_TS_DOMAIN}:8100 {
+:8100 {
   bind ${CADDY_TS_BIND_ADDR}
   tls {
     get_certificate tailscale
