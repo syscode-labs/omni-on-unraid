@@ -192,8 +192,14 @@ EOF
     [ "${SCENARIO:-healthy}" = remote-shutdown-failed ] && exit 1
     printf 'shut off' >"$state_file"
     ;;
-  setmaxmem) [ "${SCENARIO:-healthy}" != remote-setmaxmem-failed ] ;;
-  setmem) [ "${SCENARIO:-healthy}" != remote-setmem-failed ] ;;
+  setmaxmem)
+    [ "$#" = 4 ] && [ "$2" = unraid-lab-control-planes-6rrw7n ] && [ "$3" = 7340032 ] && [ "$4" = --config ] || { echo "setmaxmem must use the exact positional KiB syntax: $*" >&2; exit 2; }
+    [ "${SCENARIO:-healthy}" != remote-setmaxmem-failed ]
+    ;;
+  setmem)
+    [ "$#" = 4 ] && [ "$2" = unraid-lab-control-planes-6rrw7n ] && [ "$3" = 7340032 ] && [ "$4" = --config ] || { echo "setmem must use the exact positional KiB syntax: $*" >&2; exit 2; }
+    [ "${SCENARIO:-healthy}" != remote-setmem-failed ]
+    ;;
   start)
     starts_file="${CALL_LOG}.start-count"
     starts=0; [ -f "$starts_file" ] && starts="$(cat "$starts_file")"
@@ -252,8 +258,8 @@ assert_no_log "$CALL_LOG" 'kubectl:label node unraid-lab-control-planes-slhjx6 i
 assert_in_order "$CALL_LOG" \
   'rtk:ssh frigate-unraid:mutate' \
   'virsh:shutdown unraid-lab-control-planes-6rrw7n' \
-  'virsh:setmaxmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' \
-  'virsh:setmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' \
+  'virsh:setmaxmem unraid-lab-control-planes-6rrw7n 7340032 --config' \
+  'virsh:setmem unraid-lab-control-planes-6rrw7n 7340032 --config' \
   'virsh:start unraid-lab-control-planes-6rrw7n' \
   'kubectl:wait --for=condition=Ready node/unraid-lab-control-planes-6rrw7n --timeout=15m' \
   'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
@@ -283,10 +289,10 @@ run_case mutation-uuid-mismatch 'domain UUID does not match Omni Machine UUID' f
 assert_in_order "$CALL_LOG" 'rtk:ssh frigate-unraid:preflight' 'rtk:ssh frigate-unraid:mutate' 'virsh:dominfo unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
 assert_no_log "$CALL_LOG" 'virsh:(shutdown|setmaxmem|setmem|start)'
 run_case remote-setmaxmem-failed 'RECOVERY: restored schedulability' fail
-assert_in_order "$CALL_LOG" 'virsh:shutdown unraid-lab-control-planes-6rrw7n' 'virsh:setmaxmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' 'virsh:start unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
+assert_in_order "$CALL_LOG" 'virsh:shutdown unraid-lab-control-planes-6rrw7n' 'virsh:setmaxmem unraid-lab-control-planes-6rrw7n 7340032 --config' 'virsh:start unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
 assert_no_log "$CALL_LOG" 'virsh:setmem'
 run_case remote-setmem-failed 'RECOVERY: restored schedulability' fail
-assert_in_order "$CALL_LOG" 'virsh:setmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' 'virsh:start unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
+assert_in_order "$CALL_LOG" 'virsh:setmem unraid-lab-control-planes-6rrw7n 7340032 --config' 'virsh:start unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
 run_case remote-start-failed 'RECOVERY: restored schedulability' fail
 assert_in_order "$CALL_LOG" 'virsh:start unraid-lab-control-planes-6rrw7n' 'virsh:start unraid-lab-control-planes-6rrw7n' 'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
 run_case post-wait-failed 'RECOVERY: restored schedulability' fail
