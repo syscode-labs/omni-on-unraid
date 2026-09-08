@@ -41,8 +41,9 @@ workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
 # A prior cluster-wide patch continuously re-applied Imp placement to peers.
-# Delete only the known stale object, after proving it is exactly that object;
-# do this before issuing any Kubernetes or remote-operations command.
+# Read and validate only the known stale object here, but defer deletion until
+# every existing live preflight has passed.
+delete_stale_patch=false
 if [ "$apply" = 1 ]; then
   stale_patch_id='204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml'
   stale_patch_data=$'apiVersion: v1alpha1\nkind: KubeNodeConfig\nlabels:\n  imp/enabled: "true"\n'
@@ -55,7 +56,7 @@ if [ "$apply" = 1 ]; then
       (.metadata.labels | has("omni.sidero.dev/machine") | not) and
       .spec.data == $data
     ' <<<"$stale_patch" >/dev/null || fail 'stale cluster-wide Imp ConfigPatch does not match the expected safe content'
-    omni delete ConfigPatches.omni.sidero.dev "$stale_patch_id"
+    delete_stale_patch=true
   elif ! grep -Fq 'code = NotFound' "$stale_patch_stderr"; then
     fail 'could not read stale cluster-wide Imp ConfigPatch; refusing to continue'
   fi
@@ -199,6 +200,10 @@ if [ "$preflight_only" = 1 ]; then
   exit 0
 fi
 
+if [ "$delete_stale_patch" = true ]; then
+  omni delete ConfigPatches.omni.sidero.dev "$stale_patch_id"
+fi
+
 # Omni's ConfigPatch is machine-ID-scoped. It persists the target label across
 # node reboots/replacement of kubelet state; no global Imp label patch is used.
 cat >"$workdir/target-config-patch.yaml" <<EOF
@@ -215,6 +220,8 @@ spec:
     labels:
       imp/enabled: "true"
     taints:
+      node-role.kubernetes.io/control-plane:
+        \$patch: delete
       imp.dev/runner: "true:NoSchedule"
 EOF
 omni apply -f "$workdir/target-config-patch.yaml"

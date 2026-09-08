@@ -105,10 +105,12 @@ spec:
     labels:
       imp/enabled: "true"
     taints:
+      node-role.kubernetes.io/control-plane:
+        $patch: delete
       imp.dev/runner: "true:NoSchedule"
 '''
 if patch != expected:
-    raise SystemExit("generated ConfigPatch must be machine-scoped and render imp.dev/runner as the exact scalar true:NoSchedule")
+    raise SystemExit("generated ConfigPatch must be machine-scoped, remove the target control-plane taint, and render imp.dev/runner as the exact scalar true:NoSchedule")
 if 'value:' in patch or 'effect:' in patch:
     raise SystemExit("generated ConfigPatch must not use nested taint value/effect fields")
 PY
