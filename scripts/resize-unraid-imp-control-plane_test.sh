@@ -10,14 +10,14 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/home/.hermes/omni"
 printf 'OMNI_ENDPOINT=https://example.invalid\nOMNI_SERVICE_ACCOUNT_KEY=test-only\n' >"$tmp/home/.hermes/omni/omni.env"
 script="$tmp/resize-unraid-imp-control-plane.sh"
-python3 - "$production_script" "$script" "$tmp/bin/coding-agent-remote-operations-supervisor" <<'PY'
+python3 - "$production_script" "$script" "$tmp/bin/rtk" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text()
-old = "/usr/local/bin/coding-agent-remote-operations-supervisor"
+old = 'remote_ops="rtk"'
 if source.count(old) != 1:
-    raise SystemExit("production supervisor path must appear exactly once")
-Path(sys.argv[2]).write_text(source.replace(old, sys.argv[3]))
+    raise SystemExit("production must use the exact fixed rtk remote contract")
+Path(sys.argv[2]).write_text(source.replace(old, f'remote_ops="{sys.argv[3]}"'))
 PY
 chmod +x "$script"
 
@@ -103,27 +103,20 @@ NODE ID HOSTNAME PEER URLS CLIENT URLS LEARNER
 10.0.0.1 c $( [ "${SCENARIO:-healthy}" = etcd-wrong-member ] && echo stale-member || echo unraid-lab-control-planes-slhjx6 ) https://three https://three $( [ "${SCENARIO:-healthy}" = etcd-learner ] && echo true || echo false )
 EOF
 MOCK
-cat >"$tmp/bin/coding-agent-remote-operations-supervisor" <<'MOCK'
+cat >"$tmp/bin/rtk" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
-[ "$1" = run ] && [ "$2" = --target ] && [ "$3" = bookofshadows ] && [ "$4" = --session ] && [ "$5" = unraid-imp-control-plane-resize ] && [ "$6" = -- ] && [ "$7" = ssh ] && [ "$8" = bookofshadows ] || exit 2
+[ "$#" = 3 ] && [ "$1" = ssh ] && [ "$2" = frigate-unraid ] || exit 2
+case "$3" in 'bash -s -- '*) ;; *) exit 2 ;; esac
 body="$(cat)"
 if printf '%s' "$body" | grep -Fq 'virsh setmaxmem'; then
-  printf 'supervisor:mutate\n' >>"$CALL_LOG"
+  printf 'rtk:ssh frigate-unraid:mutate\n' >>"$CALL_LOG"
 else
-  printf 'supervisor:preflight\n' >>"$CALL_LOG"
+  printf 'rtk:ssh frigate-unraid:preflight\n' >>"$CALL_LOG"
   [ "${SCENARIO:-healthy}" = unexpected-memory ] && exit 1
 fi
-printf '%s' "$body" | "${@:7}"
-MOCK
-cat >"$tmp/bin/ssh" <<'MOCK'
-#!/usr/bin/env bash
-set -euo pipefail
-[ "$1" = bookofshadows ] || exit 2
-case "$2" in 'bash -s -- '*) ;; *) exit 2 ;; esac
-# The production script supplies fixed, single-quoted domain/UUID arguments.
-eval "set -- ${2#bash -s -- }"
-/bin/bash -s -- "$@"
+eval "set -- ${3#bash -s -- }"
+printf '%s' "$body" | /bin/bash -s -- "$@"
 MOCK
 cat >"$tmp/bin/virsh" <<'MOCK'
 #!/usr/bin/env bash
@@ -199,7 +192,7 @@ assert_in_order() {
 # Both accepted paths.
 run_case healthy '' pass
 assert_in_order "$CALL_LOG" \
-  'supervisor:mutate' \
+  'rtk:ssh frigate-unraid:mutate' \
   'virsh:shutdown unraid-lab-control-planes-6rrw7n' \
   'virsh:setmaxmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' \
   'virsh:setmem unraid-lab-control-planes-6rrw7n 7168 --config --size MiB' \
@@ -208,7 +201,7 @@ assert_in_order "$CALL_LOG" \
   'kubectl:uncordon unraid-lab-control-planes-6rrw7n'
 run_case recovery-2of3 '' pass
 run_case recovery-2of3 '' pass 1
-assert_no_log "$CALL_LOG" '^(omni:|supervisor:mutate|kubectl:(label|taint|cordon|drain|uncordon))'
+assert_no_log "$CALL_LOG" '^(omni:|rtk:ssh frigate-unraid:mutate|kubectl:(label|taint|cordon|drain|uncordon))'
 # Critical rejection gates.
 run_case other-unhealthy 'both named peers must be healthy' fail
 run_case api-failed 'API /readyz did not succeed' fail

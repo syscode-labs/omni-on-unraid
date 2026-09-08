@@ -10,9 +10,7 @@ target_domain="unraid-lab-control-planes-6rrw7n"
 target_memory_mib=7168
 apply="${APPLY:-0}"
 preflight_only="${PREFLIGHT_ONLY:-0}"
-remote_ops="/usr/local/bin/coding-agent-remote-operations-supervisor"
-remote_target="bookofshadows"
-remote_session="unraid-imp-control-plane-resize"
+remote_ops="rtk"
 peer_domains=(unraid-lab-control-planes-ng8qnl unraid-lab-control-planes-slhjx6)
 all_domains=("$target_domain" "${peer_domains[@]}")
 
@@ -148,10 +146,9 @@ printf '%s\n' "$etcd_members" | awk '
   }
 ' || fail 'etcd quorum evidence requires the three expected unique non-learner voting members'
 
-# Validate each named libvirt domain through the remote-operations supervisor.
+# Validate each named libvirt domain through the approved remote-operations path.
 # dominfo supplies the exact UUID plus current and maximum assigned memory.
-"$remote_ops" run --target "$remote_target" --session "$remote_session" -- \
-  ssh "$remote_target" "bash -s -- '${all_domains[0]}' '${machine_ids[0]}' '${all_domains[1]}' '${machine_ids[1]}' '${all_domains[2]}' '${machine_ids[2]}'" <<'REMOTE'
+"$remote_ops" ssh frigate-unraid "bash -s -- '${all_domains[0]}' '${machine_ids[0]}' '${all_domains[1]}' '${machine_ids[1]}' '${all_domains[2]}' '${machine_ids[2]}'" <<'REMOTE'
 set -euo pipefail
 while [ "$#" -gt 0 ]; do
   domain="$1"; expected_uuid="$2"; shift 2
@@ -211,10 +208,9 @@ kubectl cordon "$target_node"
 cordoned_by_script=true
 kubectl drain "$target_node" --ignore-daemonsets --delete-emptydir-data --timeout=10m
 
-# Re-check structured XML immediately before mutating through the supervisor;
+# Re-check structured XML immediately before mutating through the approved path;
 # this closes the gap between read-only preflight and shutdown.
-"$remote_ops" run --target "$remote_target" --session "$remote_session" -- \
-  ssh "$remote_target" "bash -s -- '$target_domain' '$target_memory_mib'" <<'REMOTE'
+"$remote_ops" ssh frigate-unraid "bash -s -- '$target_domain' '$target_memory_mib'" <<'REMOTE'
 set -euo pipefail
 domain="$1"; target="$2"
 [ "$domain" = unraid-lab-control-planes-6rrw7n ] || { echo 'unexpected domain' >&2; exit 1; }
