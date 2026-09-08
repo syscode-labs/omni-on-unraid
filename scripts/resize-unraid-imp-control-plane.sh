@@ -8,6 +8,7 @@ set -euo pipefail
 cluster_name="${CLUSTER_NAME:-unraid-lab}"
 target_domain="unraid-lab-control-planes-6rrw7n"
 target_memory_mib=7168
+target_memory_kib=7340032
 apply="${APPLY:-0}"
 preflight_only="${PREFLIGHT_ONLY:-0}"
 remote_ops="rtk"
@@ -35,6 +36,31 @@ command -v "$remote_ops" >/dev/null || fail "remote-operations supervisor $remot
 command -v kubectl >/dev/null || fail 'kubectl is required'
 command -v talosctl >/dev/null || fail 'talosctl is required'
 command -v jq >/dev/null || fail 'jq is required'
+
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+# A prior cluster-wide patch continuously re-applied Imp placement to peers.
+# Read and validate only the known stale object here, but defer deletion until
+# every existing live preflight has passed.
+delete_stale_patch=false
+if [ "$apply" = 1 ]; then
+  stale_patch_id='204-cluster-unraid-lab-omni/patches/1.14/imp-node-labels.yaml'
+  stale_patch_data=$'apiVersion: v1alpha1\nkind: KubeNodeConfig\nlabels:\n  imp/enabled: "true"\n'
+  stale_patch_stderr="$workdir/stale-cluster-imp-config-patch.stderr"
+  if stale_patch="$(omni get ConfigPatches.omni.sidero.dev "$stale_patch_id" -o json 2>"$stale_patch_stderr")"; then
+    jq -e --arg id "$stale_patch_id" --arg cluster "$cluster_name" --arg data "$stale_patch_data" '
+      .metadata.id == $id and
+      (.metadata.labels | type == "object") and
+      .metadata.labels["omni.sidero.dev/cluster"] == $cluster and
+      (.metadata.labels | has("omni.sidero.dev/machine") | not) and
+      .spec.data == $data
+    ' <<<"$stale_patch" >/dev/null || fail 'stale cluster-wide Imp ConfigPatch does not match the expected safe content'
+    delete_stale_patch=true
+  elif ! grep -Fq 'code = NotFound' "$stale_patch_stderr"; then
+    fail 'could not read stale cluster-wide Imp ConfigPatch; refusing to continue'
+  fi
+fi
 
 # Use Omni resources rather than the decorative `omnictl cluster status` view.
 # The recovery exception is deliberately narrower than a generic 2/3 status.
@@ -77,7 +103,6 @@ if [ "$cluster_healthy" != true ]; then
   recovery_2of3=true
 fi
 
-workdir="$(mktemp -d)"
 target_node=''
 cordoned_by_script=false
 placement_is_ready() {
@@ -175,6 +200,10 @@ if [ "$preflight_only" = 1 ]; then
   exit 0
 fi
 
+if [ "$delete_stale_patch" = true ]; then
+  omni delete ConfigPatches.omni.sidero.dev "$stale_patch_id"
+fi
+
 # Omni's ConfigPatch is machine-ID-scoped. It persists the target label across
 # node reboots/replacement of kubelet state; no global Imp label patch is used.
 cat >"$workdir/target-config-patch.yaml" <<EOF
@@ -191,6 +220,8 @@ spec:
     labels:
       imp/enabled: "true"
     taints:
+      node-role.kubernetes.io/control-plane:
+        \$patch: delete
       imp.dev/runner: "true:NoSchedule"
 EOF
 omni apply -f "$workdir/target-config-patch.yaml"
@@ -212,11 +243,12 @@ kubectl drain "$target_node" --ignore-daemonsets --delete-emptydir-data --timeou
 
 # Re-check structured XML immediately before mutating through the approved path;
 # this closes the gap between read-only preflight and shutdown.
-"$remote_ops" ssh frigate-unraid "bash -s -- '$target_domain' '$target_memory_mib' '$target_id'" <<'REMOTE'
+"$remote_ops" ssh frigate-unraid "bash -s -- '$target_domain' '$target_memory_mib' '$target_memory_kib' '$target_id'" <<'REMOTE'
 set -euo pipefail
-domain="$1"; target="$2"; expected_uuid="$3"
+domain="$1"; target_mib="$2"; target_kib="$3"; expected_uuid="$4"
 [ "$domain" = unraid-lab-control-planes-6rrw7n ] || { echo 'unexpected domain' >&2; exit 1; }
-[ "$target" = 7168 ] || { echo 'unexpected target memory' >&2; exit 1; }
+[ "$target_mib" = 7168 ] || { echo 'unexpected target memory MiB' >&2; exit 1; }
+[ "$target_kib" = 7340032 ] || { echo 'unexpected target memory KiB' >&2; exit 1; }
 info="$(virsh dominfo "$domain")"
 uuid="$(printf '%s\n' "$info" | awk -F: '/^UUID:/ {gsub(/[[:space:]]/, "", $2); print tolower($2)}')"
 [ "$uuid" = "$(printf '%s' "$expected_uuid" | tr '[:upper:]' '[:lower:]')" ] || { echo 'domain UUID does not match Omni Machine UUID' >&2; exit 1; }
@@ -240,8 +272,8 @@ shutdown_started=true
 virsh shutdown "$domain"
 for _ in $(seq 1 60); do [ "$(virsh domstate "$domain" | tr -d '\r' | xargs)" = 'shut off' ] && break; sleep 5; done
 [ "$(virsh domstate "$domain" | tr -d '\r' | xargs)" = 'shut off' ] || { echo 'domain did not shut down' >&2; exit 1; }
-virsh setmaxmem "$domain" "$target" --config --size MiB
-virsh setmem "$domain" "$target" --config --size MiB
+virsh setmaxmem "$domain" "$target_kib" --config
+virsh setmem "$domain" "$target_kib" --config
 virsh start "$domain"
 [ "$(virsh domstate "$domain" | tr -d '\r' | xargs)" = running ] || { echo 'domain did not start' >&2; exit 1; }
 REMOTE
