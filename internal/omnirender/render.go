@@ -518,6 +518,12 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			},
 		})
 	}
+	// Request libvirt's guest agent in Omni's desired schematic, not just the
+	// initial installer, without adding a QEMU extension for other providers.
+	systemExtensions := []string{firecrackerExtensionImage}
+	if config.ProviderID == "libvirt" {
+		systemExtensions = append(systemExtensions, "siderolabs/qemu-guest-agent")
+	}
 	docs := []map[string]any{
 		{
 			"kind": "Cluster",
@@ -528,7 +534,7 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			"talos": map[string]any{
 				"version": config.TalosVersion,
 			},
-			"systemExtensions": []string{firecrackerExtensionImage},
+			"systemExtensions": systemExtensions,
 			"features": map[string]any{
 				"diskEncryption": false,
 			},
