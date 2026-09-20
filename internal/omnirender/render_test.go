@@ -125,6 +125,45 @@ func TestMachineClassGeneratedYAMLMatchesUnraidFixtures(t *testing.T) {
 	}
 }
 
+func TestClusterSystemExtensionsAreProviderScoped(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		clusterName string
+		providerID  string
+		want        string
+	}{
+		{"default libvirt", "unraid-lab", "", "syscode-labs/talos-ext-firecracker,siderolabs/qemu-guest-agent"},
+		{"explicit libvirt", "another-libvirt-cluster", "libvirt", "syscode-labs/talos-ext-firecracker,siderolabs/qemu-guest-agent"},
+		{"OCI", "oci-lab", "oci", "syscode-labs/talos-ext-firecracker"},
+		{"non-libvirt with Unraid name", "unraid-lab", "bare-metal", "syscode-labs/talos-ext-firecracker"},
+		{"provider merely containing libvirt", "lab", "not-libvirt", "syscode-labs/talos-ext-firecracker"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			docs, err := ClusterDocuments(Config{
+				ClusterName:       tc.clusterName,
+				ProviderID:        tc.providerID,
+				TalosVersion:      "v1.14.0-rc.1",
+				KubernetesVersion: "v1.36.3",
+			})
+			if err != nil {
+				t.Fatalf("ClusterDocuments returned error: %v", err)
+			}
+			extensions := docs[0]["systemExtensions"].([]string)
+			if got := strings.Join(extensions, ","); got != tc.want {
+				t.Fatalf("systemExtensions = %q, want %q", got, tc.want)
+			}
+			var rendered strings.Builder
+			if err := WriteYAML(&rendered, docs); err != nil {
+				t.Fatalf("WriteYAML returned error: %v", err)
+			}
+			wantYAML := "systemExtensions:\n  - " + strings.ReplaceAll(tc.want, ",", "\n  - ") + "\n"
+			if !strings.Contains(rendered.String(), wantYAML) {
+				t.Fatalf("generated YAML missing %q:\n%s", wantYAML, rendered.String())
+			}
+		})
+	}
+}
+
 func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 	docs, err := ClusterDocuments(Config{
 		ClusterName:       "lab",
@@ -143,8 +182,8 @@ func TestClusterDefaultsToThreeSchedulableControlPlanes(t *testing.T) {
 		t.Fatalf("cluster name = %v, want lab", got)
 	}
 	extensions := docs[0]["systemExtensions"].([]string)
-	if len(extensions) != 1 || extensions[0] != "syscode-labs/talos-ext-firecracker" {
-		t.Fatalf("systemExtensions = %v, want syscode-labs/talos-ext-firecracker", extensions)
+	if got, want := strings.Join(extensions, ","), "syscode-labs/talos-ext-firecracker,siderolabs/qemu-guest-agent"; got != want {
+		t.Fatalf("systemExtensions = %v, want %s", extensions, want)
 	}
 	clusterPatches := docs[0]["patches"].([]map[string]any)
 	for _, want := range []string{
