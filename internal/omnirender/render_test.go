@@ -379,6 +379,14 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 						t.Fatal("control-plane-only proxy on workers")
 					}
 				}
+				nodeLocalDNSPatch := "omni/patches/1.14/libvirt/nodelocal-dns.yaml"
+				foundNodeLocalDNS := false
+				for _, p := range clusterPatches {
+					foundNodeLocalDNS = foundNodeLocalDNS || p["file"] == nodeLocalDNSPatch
+				}
+				if foundNodeLocalDNS != (tc.provider == "" || tc.provider == "libvirt") {
+					t.Fatalf("provider %q NodeLocal DNS patch present=%v", tc.provider, foundNodeLocalDNS)
+				}
 				cp := docs[1]["patches"].([]map[string]any)
 				wantCP := []string{
 					"omni/patches/1.14/libvirt/cp-scheduling-seed.yaml",
