@@ -382,11 +382,10 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 				cp := docs[1]["patches"].([]map[string]any)
 				wantCP := []string{
 					"omni/patches/1.14/libvirt/cp-scheduling-seed.yaml",
-					"omni/patches/1.14/libvirt/cp-schedulable.yaml",
 					"omni/patches/1.14/libvirt/disable-kube-proxy.yaml",
 				}
 				if len(cp) != len(wantCP) {
-					t.Fatalf("control-plane patches = %v, want ordered seed, delete, proxy", cp)
+					t.Fatalf("control-plane patches = %v, want ordered seed and proxy", cp)
 				}
 				previous := -1
 				for i, file := range wantCP {
@@ -403,7 +402,6 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 					"cp-scheduling-seed.yaml": "apiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane: NoSchedule\n",
 					"cni-none.yaml":           "apiVersion: v1alpha1\nkind: KubeFlannelCNIConfig\n$patch: delete\n",
 					"disable-kube-proxy.yaml": "apiVersion: v1alpha1\nkind: KubeProxyConfig\nenabled: false\n",
-					"cp-schedulable.yaml":     "apiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane:\n    $patch: delete\n",
 				} {
 					data, err := os.ReadFile(filepath.Join(moduleRoot, "omni/patches/1.14/libvirt", file))
 					if err != nil {
