@@ -576,6 +576,7 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			}
 			patches = append(patches, patch)
 		}
+		patches = append(patches, map[string]any{"file": "omni/patches/1.14/libvirt/nodelocal-dns.yaml"})
 		docs[0]["patches"] = patches
 		// Seed the default taint. The existing workload-placement patch removes
 		// this exact taint later in the effective control-plane patch sequence.
