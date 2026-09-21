@@ -576,7 +576,6 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			}
 			patches = append(patches, patch)
 		}
-		patches = append(patches, map[string]any{"file": "omni/patches/1.14/libvirt/nodelocal-dns.yaml"})
 		docs[0]["patches"] = patches
 		// Seed the default taint. The existing workload-placement patch removes
 		// this exact taint later in the effective control-plane patch sequence.
@@ -585,6 +584,11 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			{"file": "omni/patches/1.14/libvirt/cp-scheduling-seed.yaml"},
 			{"file": "omni/patches/1.14/libvirt/disable-kube-proxy.yaml"},
 		}
+	}
+	if minor == "1.14" {
+		patches := docs[0]["patches"].([]map[string]any)
+		patches = append(patches, map[string]any{"file": "omni/patches/1.14/nodelocal-dns.yaml"})
+		docs[0]["patches"] = patches
 	}
 
 	if config.Workers > 0 {
