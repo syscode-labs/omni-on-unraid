@@ -383,7 +383,7 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 				for file, want := range map[string]string{
 					"cni-none.yaml":           "apiVersion: v1alpha1\nkind: KubeFlannelCNIConfig\n$patch: delete\n",
 					"disable-kube-proxy.yaml": "apiVersion: v1alpha1\nkind: KubeProxyConfig\nenabled: false\n",
-					"cp-schedulable.yaml":     "# Seed only the default control-plane taint before deleting it: upgraded nodes\n# may already lack it, and Talos rejects deleting a missing map entry.\napiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane: NoSchedule\n---\napiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane:\n    $patch: delete\n",
+					"cp-schedulable.yaml":     "apiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane:\n    $patch: delete\n",
 				} {
 					data, err := os.ReadFile(filepath.Join(moduleRoot, "omni/patches/1.14/libvirt", file))
 					if err != nil {
