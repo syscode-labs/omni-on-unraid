@@ -366,8 +366,15 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 					t.Fatalf("modern=%v unexpected legacy ownership %q", tc.modern, legacy)
 				}
 			}
+			clusterPatches := docs[0]["patches"].([]map[string]any)
+			foundNodeLocalDNS := false
+			for _, p := range clusterPatches {
+				foundNodeLocalDNS = foundNodeLocalDNS || p["file"] == "omni/patches/1.14/nodelocal-dns.yaml"
+			}
+			if foundNodeLocalDNS != strings.HasPrefix(tc.version, "v1.14.") {
+				t.Fatalf("provider %q NodeLocal DNS patch present=%v", tc.provider, foundNodeLocalDNS)
+			}
 			if tc.modern {
-				clusterPatches := docs[0]["patches"].([]map[string]any)
 				if clusterPatches[0]["file"] != "omni/patches/1.14/libvirt/cni-none.yaml" {
 					t.Fatal(clusterPatches[0])
 				}
@@ -378,14 +385,6 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 					if p["file"] == "omni/patches/1.14/libvirt/disable-kube-proxy.yaml" {
 						t.Fatal("control-plane-only proxy on workers")
 					}
-				}
-				nodeLocalDNSPatch := "omni/patches/1.14/libvirt/nodelocal-dns.yaml"
-				foundNodeLocalDNS := false
-				for _, p := range clusterPatches {
-					foundNodeLocalDNS = foundNodeLocalDNS || p["file"] == nodeLocalDNSPatch
-				}
-				if foundNodeLocalDNS != (tc.provider == "" || tc.provider == "libvirt") {
-					t.Fatalf("provider %q NodeLocal DNS patch present=%v", tc.provider, foundNodeLocalDNS)
 				}
 				cp := docs[1]["patches"].([]map[string]any)
 				wantCP := []string{
