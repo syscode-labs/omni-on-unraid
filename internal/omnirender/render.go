@@ -559,6 +559,30 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 		},
 	}
 
+	minor, err := talosMinor(config.TalosVersion)
+	if err != nil {
+		return nil, err
+	}
+	if config.ProviderID == "libvirt" && minor == "1.14" {
+		// Talos 1.14 generates typed Kubernetes documents. Do not also set
+		// their legacy v1alpha1 fields. Keep other providers/minors unchanged.
+		patches := make([]map[string]any, 0, len(clusterPatches))
+		for _, patch := range clusterPatches {
+			switch patch["file"] {
+			case "omni/patches/cni-none.yaml":
+				patch = map[string]any{"file": "omni/patches/1.14/libvirt/cni-none.yaml"}
+			case "omni/patches/disable-kube-proxy.yaml":
+				continue // KubeProxyConfig is control-plane-only.
+			}
+			patches = append(patches, patch)
+		}
+		docs[0]["patches"] = patches
+		docs[1]["patches"] = []map[string]any{
+			{"file": "omni/patches/1.14/libvirt/cp-schedulable.yaml"},
+			{"file": "omni/patches/1.14/libvirt/disable-kube-proxy.yaml"},
+		}
+	}
+
 	if config.Workers > 0 {
 		docs = append(docs, map[string]any{
 			"kind": "Workers",

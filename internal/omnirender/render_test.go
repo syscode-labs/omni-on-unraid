@@ -339,6 +339,68 @@ func TestClusterIncludesCustomInstallImagePatch(t *testing.T) {
 	}
 }
 
+func TestLibvirtV14DocumentOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		provider, version string
+		modern            bool
+	}{
+		{"", "v1.14.0", true}, {"libvirt", "v1.14.0", true},
+		{"libvirt", "v1.14.0-rc.1", true}, {"oci", "v1.14.0", false},
+		{"libvirt-other", "v1.14.0", false}, {"libvirt", "v1.13.7", false},
+	} {
+		t.Run(tc.provider+tc.version, func(t *testing.T) {
+			docs, err := ClusterDocuments(Config{ProviderID: tc.provider, ClusterName: "unraid-lab", TalosVersion: tc.version, KubernetesVersion: "v1.36.3", Workers: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out strings.Builder
+			if err := WriteYAML(&out, docs); err != nil {
+				t.Fatal(err)
+			}
+			rendered := out.String()
+			for _, legacy := range []string{"omni/patches/cni-none.yaml", "omni/patches/disable-kube-proxy.yaml", "allowSchedulingOnControlPlanes"} {
+				if strings.Contains(rendered, legacy) == tc.modern {
+					t.Fatalf("modern=%v unexpected legacy ownership %q", tc.modern, legacy)
+				}
+			}
+			if tc.modern {
+				clusterPatches := docs[0]["patches"].([]map[string]any)
+				if clusterPatches[0]["file"] != "omni/patches/1.14/libvirt/cni-none.yaml" {
+					t.Fatal(clusterPatches[0])
+				}
+				if clusterPatches[1]["file"] != "omni/patches/inline-manifests.yaml" || clusterPatches[2]["file"] != "omni/patches/harbor-registry-mirror.yaml" {
+					t.Fatal("unrelated patch order changed")
+				}
+				for _, p := range clusterPatches {
+					if p["file"] == "omni/patches/1.14/libvirt/disable-kube-proxy.yaml" {
+						t.Fatal("control-plane-only proxy on workers")
+					}
+				}
+				cp := docs[1]["patches"].([]map[string]any)
+				if cp[0]["file"] != "omni/patches/1.14/libvirt/cp-schedulable.yaml" || cp[1]["file"] != "omni/patches/1.14/libvirt/disable-kube-proxy.yaml" {
+					t.Fatal(cp)
+				}
+				for file, want := range map[string]string{
+					"cni-none.yaml":           "apiVersion: v1alpha1\nkind: KubeFlannelCNIConfig\n$patch: delete\n",
+					"disable-kube-proxy.yaml": "apiVersion: v1alpha1\nkind: KubeProxyConfig\nenabled: false\n",
+					"cp-schedulable.yaml":     "apiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane:\n    $patch: delete\n",
+				} {
+					data, err := os.ReadFile(filepath.Join(moduleRoot, "omni/patches/1.14/libvirt", file))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if string(data) != want {
+						t.Fatalf("%s = %s, want %s", file, data, want)
+					}
+				}
+				if _, exists := docs[2]["patches"]; exists {
+					t.Fatal("worker patches changed")
+				}
+			}
+		})
+	}
+}
+
 func TestClusterIncludesMinorGatedPatchesForMatchingTalosMinor(t *testing.T) {
 	docs, err := ClusterDocuments(Config{TalosVersion: "v1.14.0", KubernetesVersion: "v1.36.3"})
 	if err != nil {
