@@ -358,6 +358,9 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			rendered := out.String()
+			if strings.Contains(rendered, "cp-scheduling-seed.yaml") != tc.modern {
+				t.Fatalf("modern=%v unexpected scheduling seed selection", tc.modern)
+			}
 			for _, legacy := range []string{"omni/patches/cni-none.yaml", "omni/patches/disable-kube-proxy.yaml", "allowSchedulingOnControlPlanes"} {
 				if strings.Contains(rendered, legacy) == tc.modern {
 					t.Fatalf("modern=%v unexpected legacy ownership %q", tc.modern, legacy)
@@ -377,10 +380,27 @@ func TestLibvirtV14DocumentOwnership(t *testing.T) {
 					}
 				}
 				cp := docs[1]["patches"].([]map[string]any)
-				if cp[0]["file"] != "omni/patches/1.14/libvirt/cp-schedulable.yaml" || cp[1]["file"] != "omni/patches/1.14/libvirt/disable-kube-proxy.yaml" {
-					t.Fatal(cp)
+				wantCP := []string{
+					"omni/patches/1.14/libvirt/cp-scheduling-seed.yaml",
+					"omni/patches/1.14/libvirt/cp-schedulable.yaml",
+					"omni/patches/1.14/libvirt/disable-kube-proxy.yaml",
+				}
+				if len(cp) != len(wantCP) {
+					t.Fatalf("control-plane patches = %v, want ordered seed, delete, proxy", cp)
+				}
+				previous := -1
+				for i, file := range wantCP {
+					if cp[i]["file"] != file {
+						t.Fatalf("patch[%d] = %v, want %s", i, cp[i], file)
+					}
+					position := strings.Index(rendered, file)
+					if position <= previous || strings.Count(rendered, file) != 1 {
+						t.Fatalf("rendered patch order/uniqueness incorrect: %s", rendered)
+					}
+					previous = position
 				}
 				for file, want := range map[string]string{
+					"cp-scheduling-seed.yaml": "apiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane: NoSchedule\n",
 					"cni-none.yaml":           "apiVersion: v1alpha1\nkind: KubeFlannelCNIConfig\n$patch: delete\n",
 					"disable-kube-proxy.yaml": "apiVersion: v1alpha1\nkind: KubeProxyConfig\nenabled: false\n",
 					"cp-schedulable.yaml":     "apiVersion: v1alpha1\nkind: KubeNodeConfig\ntaints:\n  node-role.kubernetes.io/control-plane:\n    $patch: delete\n",
