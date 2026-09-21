@@ -1,10 +1,3 @@
-# Seed only the default control-plane taint before deleting it: upgraded nodes
-# may already lack it, and Talos rejects deleting a missing map entry.
-apiVersion: v1alpha1
-kind: KubeNodeConfig
-taints:
-  node-role.kubernetes.io/control-plane: NoSchedule
----
 apiVersion: v1alpha1
 kind: KubeNodeConfig
 taints:
