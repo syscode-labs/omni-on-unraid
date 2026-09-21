@@ -577,12 +577,11 @@ func ClusterDocuments(config Config) ([]map[string]any, error) {
 			patches = append(patches, patch)
 		}
 		docs[0]["patches"] = patches
-		// Seed before deletion so already-schedulable nodes also reconcile.
-		// Omni rejects duplicate document identities within a single ConfigPatch,
-		// so these must remain separate, ordered patch references.
+		// Seed the default taint. The existing workload-placement patch removes
+		// this exact taint later in the effective control-plane patch sequence.
+		// Keep a single removal: a second delete fails when the key is absent.
 		docs[1]["patches"] = []map[string]any{
 			{"file": "omni/patches/1.14/libvirt/cp-scheduling-seed.yaml"},
-			{"file": "omni/patches/1.14/libvirt/cp-schedulable.yaml"},
 			{"file": "omni/patches/1.14/libvirt/disable-kube-proxy.yaml"},
 		}
 	}
