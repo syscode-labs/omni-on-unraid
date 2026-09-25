@@ -18,9 +18,23 @@ trap 'rm -rf "$TMPDIR"' EXIT
 helm repo add cilium https://helm.cilium.io/ --force-update >/dev/null
 helm repo update cilium >/dev/null
 
+# System control-plane services must remain off the IMP runner node while being
+# schedulable on the other control-plane nodes.
+cat > "${TMPDIR}/cilium-values.yaml" <<'EOF'
+hubble:
+  relay:
+    tolerations: &controlPlaneToleration
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+  ui:
+    tolerations: *controlPlaneToleration
+EOF
+
 helm template cilium cilium/cilium \
   --version "${CILIUM_VERSION}" \
   --namespace kube-system \
+  -f "${TMPDIR}/cilium-values.yaml" \
   --set kubeProxyReplacement=true \
   --set k8sServiceHost=localhost \
   --set k8sServicePort=7445 \
